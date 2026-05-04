@@ -55,7 +55,7 @@ export default function LoginPage() {
         >
           <LogIn size={40} color="white" />
         </motion.div>
-        <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>Pelada VIP</h1>
+        <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>Show de Resenha FC</h1>
         <p style={{ color: 'var(--secondary)', marginTop: '0.5rem' }}>Entre para entrar em campo</p>
       </header>
 

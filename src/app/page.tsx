@@ -204,6 +204,19 @@ export default function Home() {
     }
   };
 
+  const handleUndoPayment = async (playerId: string) => {
+    if (!activeMatch.id) return;
+    const matchRef = doc(db, 'matches', activeMatch.id);
+    const updatedParticipants = activeMatch.participants.map((p: any) => 
+      p.uid === playerId ? { ...p, paymentStatus: 'pending' } : p
+    );
+    try {
+      await updateDoc(matchRef, { participants: updatedParticipants });
+    } catch (e) {
+      alert("Erro ao desfazer pagamento.");
+    }
+  };
+
   const handleShareMatch = async () => {
     if (!activeMatch.id) return;
     const shareUrl = `${window.location.origin}/?matchId=${activeMatch.id}`;
@@ -212,7 +225,7 @@ export default function Home() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Pelada VIP - Convite',
+          title: 'Show de Resenha FC - Convite',
           text: shareText,
           url: shareUrl
         });
@@ -392,7 +405,7 @@ export default function Home() {
             <button onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: 'Pelada VIP',
+                  title: 'Show de Resenha FC',
                   text: `Bora pro futebol em ${activeMatch.location}? Data: ${activeMatch.date} às ${activeMatch.time}`,
                   url: window.location.href
                 });
@@ -707,14 +720,25 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
                     </span>
                   </div>
                 </div>
-                {profile?.role === 'admin' && player.paymentStatus === 'notified' && (
-                  <button 
-                    onClick={() => handleVerifyPayment(player.uid)}
-                    style={{ background: 'var(--primary)', color: 'black', padding: '10px 16px', borderRadius: '12px', fontSize: '11px', fontWeight: '900' }}
-                  >
-                    VALIDAR
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {profile?.role === 'admin' && player.paymentStatus === 'notified' && (
+                    <button 
+                      onClick={() => handleVerifyPayment(player.uid)}
+                      style={{ background: 'var(--primary)', color: 'black', padding: '10px 16px', borderRadius: '12px', fontSize: '11px', fontWeight: '900' }}
+                    >
+                      VALIDAR
+                    </button>
+                  )}
+                  
+                  {(profile?.role === 'admin' || profile?.uid === player.uid) && (player.paymentStatus === 'notified' || player.paymentStatus === 'verified') && (
+                    <button 
+                      onClick={() => { if (confirm('Tem certeza que deseja desfazer a confirmação de pagamento?')) handleUndoPayment(player.uid) }}
+                      style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', padding: '10px 16px', borderRadius: '12px', fontSize: '11px', fontWeight: '900', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                    >
+                      DESFAZER
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

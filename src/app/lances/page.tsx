@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2 } from 'lucide-react';
+import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2, PlayCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, deleteDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -111,7 +111,7 @@ function LancesContent() {
     const shareUrl = `${baseUrl}?id=${lance.id}`;
     
     const shareData = {
-      title: 'Pelada VIP - Lance Épico',
+      title: 'Show de Resenha FC - Lance Épico',
       text: `Confira esse lance de ${lance.author}: ${lance.description}`,
       url: shareUrl
     };
@@ -250,7 +250,7 @@ function LancesContent() {
             </div>
 
             {/* Media Content */}
-            <div style={{ width: '100%', aspectRatio: '1/1', background: '#000', position: 'relative' }}>
+            <div style={{ width: '100%', aspectRatio: lance.type === 'video' ? '16/9' : '1/1', background: '#000', position: 'relative' }}>
               {lance.type === 'video' ? (
                 <iframe 
                   src={lance.url} 

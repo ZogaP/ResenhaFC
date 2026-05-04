@@ -186,7 +186,7 @@ export default function PlayerCard({ name, overall, position, attributes, photoU
         opacity: 0.3,
         letterSpacing: '3px'
       }}>
-        PELADA VIP
+        SHOW DE RESENHA FC
       </div>
     </motion.div>
   );

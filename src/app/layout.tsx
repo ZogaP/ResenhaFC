@@ -7,13 +7,13 @@ import BottomNav from "@/components/BottomNav";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Pelada VIP - Gestão Inteligente",
+  title: "Show de Resenha FC - Gestão Inteligente",
   description: "Gerencie suas peladas de futebol com sorteio balanceado e avaliações pós-jogo.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Pelada VIP",
+    title: "Show de Resenha FC",
   },
 };
 
