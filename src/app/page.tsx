@@ -545,6 +545,7 @@ export default function Home() {
         profile={profile}
         handleNotifyPayment={handleNotifyPayment}
         handleVerifyPayment={handleVerifyPayment}
+        handleUndoPayment={handleUndoPayment}
       />
 
       <ProfileModal 
@@ -633,7 +634,7 @@ function ProfileModal({ show, onClose, profile, updatePhoto, updatePosition, use
   );
 }
 
-function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPayment, handleVerifyPayment }: any) {
+function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPayment, handleVerifyPayment, handleUndoPayment }: any) {
   if (!show || !match?.id) return null;
 
   return (
