@@ -47,6 +47,10 @@ interface UserProfile {
   altura?: number;
   chuteira?: number;
   peso?: number;
+  // Friends System
+  username?: string;
+  friends?: string[];
+  friendRequests?: string[];
 }
 
 interface AuthContextType {
@@ -101,6 +105,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             totalGames: 0,
             confirmedGames: 0,
             position: 'MEI',
+            username: '',
+            friends: [],
+            friendRequests: [],
           };
           await setDoc(docRef, newProfile);
           setProfile(newProfile);

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, User, ArrowLeft } from 'lucide-react';
@@ -11,6 +11,7 @@ import { Mail, Lock, User, ArrowLeft } from 'lucide-react';
 export default function SignUpPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [photoURL, setPhotoURL] = useState('');
@@ -20,6 +21,22 @@ export default function SignUpPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (username.trim().length < 3) {
+        setError('O nome de usuário deve ter pelo menos 3 caracteres.');
+        return;
+      }
+      
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      
+      // Check if username exists
+      const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        setError('Este nome de usuário já está em uso. Escolha outro.');
+        return;
+      }
+
       const fullName = `${firstName} ${lastName}`.trim();
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -46,6 +63,9 @@ export default function SignUpPage() {
         confirmedGames: 0,
         position: 'MEI',
         profileSetup: false,
+        username: cleanUsername,
+        friends: [],
+        friendRequests: [],
         highlights: []
       });
 
@@ -66,6 +86,28 @@ export default function SignUpPage() {
       </header>
 
       <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', fontWeight: 'bold' }}>@</span>
+          <input
+            type="text"
+            placeholder="Nome de usuário (único)"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            style={{
+              width: '100%',
+              padding: '16px 16px 16px 48px',
+              borderRadius: '12px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--primary)',
+              fontWeight: '800',
+              outline: 'none'
+            }}
+            required
+          />
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div style={{ position: 'relative' }}>
             <User style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--secondary)' }} size={20} />

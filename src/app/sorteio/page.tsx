@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Users, Shuffle, Lock, Shield, UserMinus, Plus, CheckCircle, Circle } from 'lucide-react';
+import { Users, Shuffle, Lock, Shield, UserMinus, Plus, CheckCircle, Circle, Trash2 } from 'lucide-react';
 import { motion, Reorder } from 'framer-motion';
 import { clsx } from 'clsx';
 import { db } from '@/lib/firebase';
@@ -72,7 +72,7 @@ export default function SorteioPage() {
     await updateDoc(matchRef, { presentIds: next });
   };
 
-  const drawTeams = async () => {
+  const drawTeams = async (forceAnyway = false) => {
     const presentPlayers = confirmedPlayers.filter(p => presentIds.has(p.uid));
     if (presentPlayers.length === 0) {
       alert("Selecione os jogadores presentes!");
@@ -86,12 +86,12 @@ export default function SorteioPage() {
     const keepers = sorted.filter(p => p.position === 'GOL');
     const others = sorted.filter(p => p.position !== 'GOL');
 
-    const totalTeams = Math.floor(presentPlayers.length / playersPerTeam);
-    if (totalTeams === 0) {
-      alert(`Jogadores insuficientes para formar um time de ${playersPerTeam}!`);
+    let totalTeams = Math.floor(presentPlayers.length / playersPerTeam);
+    if (totalTeams === 0 && !forceAnyway) {
       setIsDrawing(false);
       return;
     }
+    totalTeams = Math.max(totalTeams, forceAnyway ? Math.min(2, presentPlayers.length) : 1);
 
     const newTeams: Player[][] = Array.from({ length: totalTeams }, () => []);
     const newBench: Player[] = [];
@@ -139,6 +139,14 @@ export default function SorteioPage() {
     }
 
     setTimeout(() => setIsDrawing(false), 1000);
+  };
+
+  const cancelSorteio = async () => {
+    if (!activeMatchId) return;
+    if (confirm("Tem certeza? Os times atuais serão apagados para um novo sorteio.")) {
+      const matchRef = doc(db, 'matches', activeMatchId);
+      await updateDoc(matchRef, { teams: [], bench: [] });
+    }
   };
 
   const getTeamAverage = (team: Player[]) => {
@@ -205,14 +213,30 @@ export default function SorteioPage() {
           </div>
         </div>
 
+        {/* Insufficient players warning */}
+        {presentIds.size > 0 && presentIds.size < playersPerTeam && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '16px', padding: '14px', marginBottom: '1rem', textAlign: 'center' }}>
+            <p style={{ color: '#f59e0b', fontSize: '13px', fontWeight: '700', marginBottom: '10px' }}>
+              ⚠️ Faltam {playersPerTeam - presentIds.size} jogador(es) para formar times de {playersPerTeam}
+            </p>
+            <button 
+              onClick={() => drawTeams(true)}
+              disabled={isDrawing}
+              style={{ padding: '10px 20px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', fontWeight: '800', fontSize: '13px', border: '1px solid rgba(245, 158, 11, 0.4)' }}
+            >
+              FAZER MESMO ASSIM
+            </button>
+          </div>
+        )}
+
         <button 
-          onClick={drawTeams}
-          disabled={isDrawing || presentIds.size < playersPerTeam}
+          onClick={() => drawTeams()}
+          disabled={isDrawing}
           style={{
             width: '100%',
             padding: '18px',
             borderRadius: '18px',
-            background: isDrawing || presentIds.size < playersPerTeam ? 'var(--surface)' : 'var(--primary)',
+            background: isDrawing ? 'var(--surface)' : 'var(--primary)',
             color: 'black',
             fontWeight: '900',
             fontSize: '1.1rem',
@@ -271,6 +295,17 @@ export default function SorteioPage() {
               ))}
             </div>
           </motion.div>
+        )}
+        {teams.length > 0 && (
+          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+            <button 
+              onClick={cancelSorteio}
+              style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', padding: '14px 20px', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '800', width: '100%' }}
+            >
+              <Trash2 size={18} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
+              CANCELAR E REFAZER SORTEIO
+            </button>
+          </div>
         )}
       </div>
 

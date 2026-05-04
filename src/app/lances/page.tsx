@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2, PlayCircle } from 'lucide-react';
+import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2, PlayCircle, Maximize } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, deleteDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -14,6 +14,7 @@ function LancesContent() {
   const searchParams = useSearchParams();
   const [lances, setLances] = useState<any[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [newLink, setNewLink] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
@@ -252,13 +253,21 @@ function LancesContent() {
             {/* Media Content */}
             <div style={{ width: '100%', aspectRatio: lance.type === 'video' ? '16/9' : '1/1', background: '#000', position: 'relative' }}>
               {lance.type === 'video' ? (
-                <iframe 
-                  src={lance.url} 
-                  style={{ width: '100%', height: '100%', border: 'none' }} 
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                  referrerPolicy="no-referrer"
-                  allowFullScreen
-                />
+                <>
+                  <iframe 
+                    src={lance.url} 
+                    style={{ width: '100%', height: '100%', border: 'none' }} 
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    referrerPolicy="no-referrer"
+                    allowFullScreen
+                  />
+                  <button 
+                    onClick={() => setFullscreenVideo(lance.url)}
+                    style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 'bold', zIndex: 10 }}
+                  >
+                    <Maximize size={14} /> EXPANDIR
+                  </button>
+                </>
               ) : (
                 <img 
                   src={lance.url} 
@@ -344,6 +353,26 @@ function LancesContent() {
           Ver lances antigos
         </button>
       </div>
+
+      {/* Fullscreen Video Overlay */}
+      {fullscreenVideo && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000', zIndex: 9999999, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '20px', display: 'flex', justifyContent: 'flex-end', paddingTop: 'env(safe-area-inset-top, 20px)' }}>
+            <button onClick={() => setFullscreenVideo(null)} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold' }}>
+              FECHAR
+            </button>
+          </div>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <iframe 
+              src={fullscreenVideo} 
+              style={{ width: '100%', height: '100%', border: 'none' }} 
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerPolicy="no-referrer"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

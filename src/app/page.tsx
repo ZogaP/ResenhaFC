@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { MapPin, Calendar, Clock, DollarSign, CheckCircle2, UserCheck, AlertCircle, ShieldCheck, Plus, Cake, PartyPopper, Camera, CheckCircle, Trash2, Users } from 'lucide-react';
 import { clsx } from 'clsx';
 import PlayerCard from '@/components/PlayerCard';
-import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { transformMediaLink } from '@/lib/utils';
 
@@ -32,6 +32,37 @@ export default function Home() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  
+  const [setupUsername, setSetupUsername] = useState('');
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+
+  const handleSaveUsername = async () => {
+    if (!user || !profile) return;
+    if (setupUsername.length < 3) {
+      setUsernameError('Mínimo 3 caracteres');
+      return;
+    }
+    setCheckingUsername(true);
+    const cleanUsername = setupUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    
+    try {
+      const q = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        setUsernameError('Nome já em uso!');
+        setCheckingUsername(false);
+        return;
+      }
+      
+      await updateDoc(doc(db, 'users', user.uid), { username: cleanUsername });
+      setProfile({ ...profile, username: cleanUsername });
+    } catch (e) {
+      setUsernameError('Erro ao salvar.');
+    }
+    setCheckingUsername(false);
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -306,9 +337,42 @@ export default function Home() {
     );
   }
 
+
+
+  if (profile && !profile.username) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', background: 'var(--background)' }}>
+        <div style={{ background: 'var(--surface)', padding: '2rem', borderRadius: '24px', width: '100%', maxWidth: '400px', border: '1px solid var(--border)', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '900', marginBottom: '1rem' }}>Crie seu @Username</h2>
+          <p style={{ color: 'var(--secondary)', marginBottom: '2rem', fontSize: '14px' }}>Para que seus amigos possam te encontrar no novo sistema, você precisa de um nome de usuário único.</p>
+          
+          <div style={{ position: 'relative', marginBottom: '1rem' }}>
+            <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', fontWeight: 'bold' }}>@</span>
+            <input
+              type="text"
+              placeholder="ex: ronaldinho10"
+              value={setupUsername}
+              onChange={(e) => { setSetupUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')); setUsernameError(''); }}
+              style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', color: 'white', outline: 'none' }}
+            />
+          </div>
+          {usernameError && <p style={{ color: 'var(--error)', fontSize: '12px', marginBottom: '1rem', fontWeight: 'bold' }}>{usernameError}</p>}
+          
+          <button 
+            onClick={handleSaveUsername}
+            disabled={checkingUsername || setupUsername.length < 3}
+            style={{ width: '100%', padding: '16px', background: 'var(--primary)', color: 'black', borderRadius: '12px', fontWeight: '900', opacity: (checkingUsername || setupUsername.length < 3) ? 0.5 : 1 }}
+          >
+            {checkingUsername ? 'Verificando...' : 'SALVAR E ENTRAR'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-    <div className="fade-in container" style={{ paddingBottom: '100px' }}>
+    <div className="fade-in container pb-24" style={{ paddingBottom: '100px' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', paddingTop: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: '400', color: 'var(--secondary)' }}>Olá,</h2>
