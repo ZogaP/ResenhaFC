@@ -266,19 +266,19 @@ function LancesContent() {
             {/* Media Content */}
             <div style={{ 
               width: '100%', 
-              aspectRatio: lance.type === 'video' ? '16/9' : '1/1', 
+              aspectRatio: lance.type === 'video' ? '4/3' : '1/1', 
               background: '#000', 
               position: 'relative',
-              borderRadius: '16px',
+              borderRadius: '20px',
               overflow: 'hidden',
               marginBottom: '16px',
               border: '1px solid var(--border)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+              boxShadow: '0 12px 40px rgba(0,0,0,0.6)'
             }}>
               {lance.type === 'video' ? (
                 <>
                   <iframe 
-                    src={transformMediaLink(lance.url)} 
+                    src={transformMediaLink(lance.url, true)} 
                     style={{ 
                       position: 'absolute',
                       top: 0,
@@ -293,7 +293,7 @@ function LancesContent() {
                   
                   {/* Expand Overlay Button */}
                   <button 
-                    onClick={() => setFullscreenVideo(transformMediaLink(lance.url))}
+                    onClick={() => setFullscreenVideo(transformMediaLink(lance.url, true))}
                     style={{
                       position: 'absolute',
                       top: '12px',
