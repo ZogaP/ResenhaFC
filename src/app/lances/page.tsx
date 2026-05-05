@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2, PlayCircle, Maximize } from 'lucide-react';
+import { Camera, Plus, Heart, MessageCircle, Share2, User, Trash2, PlayCircle, Maximize, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, deleteDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -18,6 +18,7 @@ function LancesContent() {
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [newLink, setNewLink] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [replyingTo, setReplyingTo] = useState<{ lanceId: string, commentIndex: number, author: string } | null>(null);
 
   // Fetch lances from Firestore in real-time
   useEffect(() => {
@@ -141,13 +142,24 @@ function LancesContent() {
     try {
       const lanceRef = doc(db, 'lances', id);
       const lanceDoc = lances.find(l => l.id === id);
-      const newComment = {
+      const newComment: any = {
         author: profile.name,
         text: text,
         createdAt: new Date().toISOString()
       };
       
-      const updatedComments = [...(lanceDoc.comments || []), newComment];
+      let updatedComments = [...(lanceDoc.comments || [])];
+      
+      if (replyingTo && replyingTo.lanceId === id) {
+        const parent = updatedComments[replyingTo.commentIndex];
+        if (parent) {
+          parent.replies = [...(parent.replies || []), newComment];
+          updatedComments[replyingTo.commentIndex] = parent;
+        }
+        setReplyingTo(null);
+      } else {
+        updatedComments.push(newComment);
+      }
       
       await updateDoc(lanceRef, {
         comments: updatedComments
@@ -158,10 +170,10 @@ function LancesContent() {
   };
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" style={{ paddingTop: '1rem', paddingBottom: '100px' }}>
       <header style={{ 
         marginBottom: '1.5rem', 
-        paddingTop: '1rem', 
+        padding: '0 1rem',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center' 
@@ -173,9 +185,9 @@ function LancesContent() {
         <button 
           onClick={() => setIsAdding(true)}
           style={{ 
-            width: '50px', 
-            height: '50px', 
-            borderRadius: '50%', 
+            width: '45px', 
+            height: '45px', 
+            borderRadius: '14px', 
             background: 'var(--primary-gradient)', 
             color: 'black',
             display: 'flex',
@@ -320,37 +332,63 @@ function LancesContent() {
 
               {/* Comments Display */}
               {lance.comments && lance.comments.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px', marginBottom: '16px' }}>
                   {lance.comments.map((c: any, i: number) => (
-                    <div key={i} style={{ fontSize: '12px' }}>
-                      <span style={{ fontWeight: '700', marginRight: '6px' }}>{c.author}</span>
-                      <span style={{ color: 'var(--secondary)' }}>{c.text}</span>
+                    <div key={i}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ fontWeight: '700', marginRight: '6px' }}>{c.author}</span>
+                          <span style={{ color: 'var(--secondary)' }}>{c.text}</span>
+                        </div>
+                        <button 
+                          onClick={() => setReplyingTo({ lanceId: lance.id, commentIndex: i, author: c.author })}
+                          style={{ fontSize: '10px', color: 'var(--primary)', background: 'none', border: 'none', fontWeight: '700' }}
+                        >
+                          RESPONDER
+                        </button>
+                      </div>
+                      
+                      {/* Replies */}
+                      {c.replies && c.replies.map((r: any, ri: number) => (
+                        <div key={ri} style={{ marginLeft: '24px', marginTop: '6px', fontSize: '11px', borderLeft: '2px solid var(--border)', paddingLeft: '8px' }}>
+                          <span style={{ fontWeight: '700', marginRight: '6px' }}>{r.author}</span>
+                          <span style={{ color: 'var(--secondary)' }}>{r.text}</span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Comment Input */}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input 
-                  type="text" 
-                  placeholder="Adicione um comentário..."
-                  onKeyDown={(e: any) => {
-                    if (e.key === 'Enter') {
-                      handleComment(lance.id, e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  style={{ 
-                    flex: 1, 
-                    background: 'var(--surface)', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '8px', 
-                    padding: '8px 12px', 
-                    fontSize: '12px', 
-                    color: 'white' 
-                  }} 
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {replyingTo && replyingTo.lanceId === lance.id && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(29, 185, 84, 0.1)', padding: '4px 10px', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--primary)', fontWeight: '700' }}>Respondendo a {replyingTo.author}</span>
+                    <button onClick={() => setReplyingTo(null)} style={{ color: 'var(--secondary)', background: 'none', border: 'none' }}><X size={14} /></button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input 
+                    type="text" 
+                    placeholder={replyingTo && replyingTo.lanceId === lance.id ? "Escreva sua resposta..." : "Adicione um comentário..."}
+                    onKeyDown={(e: any) => {
+                      if (e.key === 'Enter') {
+                        handleComment(lance.id, e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    style={{ 
+                      flex: 1, 
+                      background: 'var(--surface)', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: '8px', 
+                      padding: '8px 12px', 
+                      fontSize: '12px', 
+                      color: 'white' 
+                    }} 
+                  />
+                </div>
               </div>
             </div>
           </motion.div>
@@ -364,15 +402,45 @@ function LancesContent() {
         </button>
       </div>
 
-      {/* Fullscreen Video Overlay */}
+      {/* Premium Fullscreen Video Overlay */}
       {fullscreenVideo && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000', zIndex: 9999999, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '20px', display: 'flex', justifyContent: 'flex-end', paddingTop: 'env(safe-area-inset-top, 20px)' }}>
-            <button onClick={() => setFullscreenVideo(null)} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold' }}>
-              FECHAR
-            </button>
-          </div>
-          <div style={{ flex: 1, position: 'relative' }}>
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            background: '#000', 
+            zIndex: 9999999, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center'
+          }}
+        >
+          <button 
+            onClick={() => setFullscreenVideo(null)} 
+            style={{ 
+              position: 'absolute',
+              top: 'env(safe-area-inset-top, 20px)',
+              right: '20px',
+              zIndex: 10,
+              background: 'rgba(255,255,255,0.1)',
+              backdropFilter: 'blur(10px)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.2)',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X size={24} />
+          </button>
+
+          <div style={{ width: '100%', aspectRatio: '16/9', maxHeight: '100vh' }}>
             <iframe 
               src={fullscreenVideo} 
               style={{ width: '100%', height: '100%', border: 'none' }} 
