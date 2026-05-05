@@ -278,7 +278,7 @@ function LancesContent() {
               {lance.type === 'video' ? (
                 <>
                   <iframe 
-                    src={transformMediaLink(lance.mediaURL)} 
+                    src={transformMediaLink(lance.url)} 
                     style={{ 
                       position: 'absolute',
                       top: 0,
@@ -293,7 +293,7 @@ function LancesContent() {
                   
                   {/* Expand Overlay Button */}
                   <button 
-                    onClick={() => setFullscreenVideo(transformMediaLink(lance.mediaURL))}
+                    onClick={() => setFullscreenVideo(transformMediaLink(lance.url))}
                     style={{
                       position: 'absolute',
                       top: '12px',
