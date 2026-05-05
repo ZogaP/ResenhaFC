@@ -212,7 +212,7 @@ export default function SignUpPage() {
         <button
           type="submit"
           style={{
-            background: 'var(--primary)',
+            background: 'var(--primary-gradient)',
             color: 'black',
             fontWeight: '700',
             padding: '16px',

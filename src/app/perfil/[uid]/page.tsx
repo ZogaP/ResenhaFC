@@ -166,7 +166,7 @@ export default function PerfilPage() {
             )}
           </div>
           <p style={{ color: 'var(--secondary)', margin: 0, fontSize: '14px' }}>
-            {profileData.username ? `@${profileData.username}` : 'Jogador Resenha FC'}
+            {profileData.username ? `@${profileData.username}` : 'Jogador LineUp'}
           </p>
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
@@ -377,7 +377,7 @@ export default function PerfilPage() {
                     <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
                   </div>
                   <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
-                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary)', borderRadius: '3px' }} />
+                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
                   </div>
                 </div>
               ))}
@@ -398,7 +398,7 @@ export default function PerfilPage() {
                     <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
                   </div>
                   <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
-                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary)', borderRadius: '3px' }} />
+                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
                   </div>
                 </div>
               ))}

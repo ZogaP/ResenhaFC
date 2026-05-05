@@ -261,7 +261,7 @@ export default function Home() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Show de Resenha FC - Convite',
+          title: 'LineUp - Convite',
           text: shareText,
           url: shareUrl
         });
@@ -336,8 +336,23 @@ export default function Home() {
 
   if (loading || !user) {
     return (
-      <div style={{ display: 'flex', height: '80vh', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="loader">Carregando...</div>
+      <div style={{ display: 'flex', height: '80vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
+        <div className="loader-spinner" />
+        <p style={{ color: 'var(--secondary)', fontSize: '14px', fontWeight: '600', letterSpacing: '1px' }}>PREPARANDO CAMPO...</p>
+        <style jsx>{`
+          .loader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.05);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -366,7 +381,7 @@ export default function Home() {
           <button 
             onClick={handleSaveUsername}
             disabled={checkingUsername || setupUsername.length < 3}
-            style={{ width: '100%', padding: '16px', background: 'var(--primary)', color: 'black', borderRadius: '12px', fontWeight: '900', opacity: (checkingUsername || setupUsername.length < 3) ? 0.5 : 1 }}
+            style={{ width: '100%', padding: '16px', background: 'var(--primary-gradient)', color: 'black', borderRadius: '12px', fontWeight: '900', opacity: (checkingUsername || setupUsername.length < 3) ? 0.5 : 1 }}
           >
             {checkingUsername ? 'Verificando...' : 'SALVAR E ENTRAR'}
           </button>
@@ -474,7 +489,7 @@ export default function Home() {
             <button onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: 'Show de Resenha FC',
+                  title: 'LineUp',
                   text: `Bora pro futebol em ${activeMatch.location}? Data: ${activeMatch.date} às ${activeMatch.time}`,
                   url: window.location.href
                 });
@@ -482,7 +497,7 @@ export default function Home() {
             }} style={{ background: 'var(--surface)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700', border: '1px solid var(--border)' }}>COMPARTILHAR</button>
           )}
           {profile?.role === 'admin' && (
-            <button onClick={() => router.push('/admin/nova-partida')} style={{ background: 'var(--primary)', color: 'black', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}> <Plus size={16} /> NOVA</button>
+            <button onClick={() => router.push('/admin/nova-partida')} style={{ background: 'var(--primary-gradient)', color: 'black', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}> <Plus size={16} /> NOVA</button>
           )}
         </div>
       </div>

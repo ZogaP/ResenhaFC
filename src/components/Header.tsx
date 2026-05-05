@@ -16,16 +16,8 @@ export default function Header() {
       padding: '15px 20px'
     }}>
       <Link href="/" style={{ textDecoration: 'none' }}>
-        <h1 style={{ 
-          fontSize: '1.2rem', 
-          fontWeight: '900', 
-          margin: 0,
-          background: 'linear-gradient(90deg, #10b981 0%, #3b82f6 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          letterSpacing: '-0.5px'
-        }}>
-          RESENHA FC
+        <h1 className="logo-text">
+          LineUp
         </h1>
       </Link>
 

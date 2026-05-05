@@ -270,7 +270,7 @@ export default function PlayerCard({ name, overall, position, attributes, photoU
         letterSpacing: '3px',
         zIndex: 2
       }}>
-        SHOW DE RESENHA FC
+        LINEUP
       </div>
     </motion.div>
   );

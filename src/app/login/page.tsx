@@ -44,7 +44,7 @@ export default function LoginPage() {
           style={{ 
             width: '80px', 
             height: '80px', 
-            background: 'var(--primary)', 
+            background: 'var(--primary-gradient)', 
             borderRadius: '20px',
             margin: '0 auto 1rem',
             display: 'flex',
@@ -55,7 +55,7 @@ export default function LoginPage() {
         >
           <LogIn size={40} color="white" />
         </motion.div>
-        <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>Show de Resenha FC</h1>
+        <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>LineUp</h1>
         <p style={{ color: 'var(--secondary)', marginTop: '0.5rem' }}>Entre para entrar em campo</p>
       </header>
 
@@ -105,7 +105,7 @@ export default function LoginPage() {
         <button
           type="submit"
           style={{
-            background: 'var(--primary)',
+            background: 'var(--primary-gradient)',
             color: 'black',
             fontWeight: '700',
             padding: '16px',

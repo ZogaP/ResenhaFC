@@ -1,5 +1,5 @@
 /**
- * Evolution Engine — Show de Resenha FC
+ * Evolution Engine — LineUp
  * Sistema de progressão inspirado no FIFA Ultimate Team.
  * 
  * Fórmulas:

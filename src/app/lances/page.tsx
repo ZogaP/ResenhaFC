@@ -113,7 +113,7 @@ function LancesContent() {
     const shareUrl = `${baseUrl}?id=${lance.id}`;
     
     const shareData = {
-      title: 'Show de Resenha FC - Lance Épico',
+      title: 'LineUp - Lance Épico',
       text: `Confira esse lance de ${lance.author}: ${lance.description}`,
       url: shareUrl
     };
@@ -176,7 +176,7 @@ function LancesContent() {
             width: '50px', 
             height: '50px', 
             borderRadius: '50%', 
-            background: 'var(--primary)', 
+            background: 'var(--primary-gradient)', 
             color: 'black',
             display: 'flex',
             alignItems: 'center',
@@ -207,7 +207,7 @@ function LancesContent() {
             />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setIsAdding(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'var(--border)' }}>Cancelar</button>
-              <button onClick={handleAddLance} style={{ flex: 2, padding: '12px', borderRadius: '12px', background: 'var(--primary)', color: 'black', fontWeight: '700' }}>Postar</button>
+              <button onClick={handleAddLance} style={{ flex: 2, padding: '12px', borderRadius: '12px', background: 'var(--primary-gradient)', color: 'black', fontWeight: '700' }}>Postar</button>
             </div>
           </div>
         </div>

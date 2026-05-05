@@ -5,11 +5,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import Header from "@/components/Header";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "LineUp - Resenha FC",
+  title: "LineUp",
   description: "Gerencie suas peladas de futebol com sorteio balanceado e avaliações pós-jogo.",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -50,15 +51,22 @@ export default function RootLayout({
             </div>
           </div>
         </AuthProvider>
-        <script
+        <Script
+          id="pwa-sw"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                    console.log('SW registered');
-                  }).catch(function(err) {
-                    console.log('SW failed', err);
+                    reg.onupdatefound = () => {
+                      const newWorker = reg.installing;
+                      newWorker.onstatechange = () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                          window.dispatchEvent(new CustomEvent('pwa-update-available'));
+                        }
+                      };
+                    };
                   });
                 });
               }

@@ -1,5 +1,5 @@
 {
-  "name": "LineUp - Resenha FC",
+  "name": "LineUp",
   "short_name": "LineUp",
   "description": "Gestão tática e gamificada de peladas",
   "start_url": "/",
@@ -20,6 +20,10 @@
       "type": "image/png"
     }
   ],
+  "developer": {
+    "name": "MiRod",
+    "url": "/"
+  },
   "shortcuts": [
     {
       "name": "Sorteio de Times",

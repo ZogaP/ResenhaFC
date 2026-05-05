@@ -451,7 +451,7 @@ function RatingModal({ show, player, onClose, onSave }: any) {
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(10px)' }}>
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '100%', maxWidth: '400px', borderRadius: '32px', padding: '2rem', border: '1px solid var(--border)' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary)', margin: '0 auto 12px', overflow: 'hidden', border: '3px solid var(--primary)' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary-gradient)', margin: '0 auto 12px', overflow: 'hidden', border: '3px solid var(--primary)' }}>
             <img src={player.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <h3 style={{ fontSize: '1.4rem', fontWeight: '900' }}>Avaliar {player.name.split(' ')[0]}</h3>
@@ -510,7 +510,7 @@ function RatingModal({ show, player, onClose, onSave }: any) {
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '16px', borderRadius: '16px', background: 'transparent', color: 'var(--secondary)', fontWeight: '700' }}>CANCELAR</button>
-          <button onClick={() => onSave(ratings)} style={{ flex: 2, padding: '16px', borderRadius: '16px', background: 'var(--primary)', color: 'black', fontWeight: '900', boxShadow: '0 5px 15px var(--primary-glow)' }}>ENVIAR NOTAS</button>
+          <button onClick={() => onSave(ratings)} style={{ flex: 2, padding: '16px', borderRadius: '16px', background: 'var(--primary-gradient)', color: 'black', fontWeight: '900', boxShadow: '0 5px 15px var(--primary-glow)' }}>ENVIAR NOTAS</button>
         </div>
       </motion.div>
     </div>

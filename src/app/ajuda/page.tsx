@@ -69,7 +69,7 @@ export default function AjudaPage() {
           <HelpCircle size={28} color="var(--primary)" />
           <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Central de Ajuda</h1>
         </div>
-        <p style={{ color: 'var(--secondary)' }}>Aprenda a dominar o Show de Resenha FC</p>
+        <p style={{ color: 'var(--secondary)' }}>Aprenda a dominar o LineUp</p>
       </header>
 
       {/* Tabs */}
