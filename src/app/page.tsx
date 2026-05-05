@@ -10,6 +10,7 @@ import PlayerCard from '@/components/PlayerCard';
 import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot, arrayUnion, arrayRemove, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { transformMediaLink } from '@/lib/utils';
+import Link from 'next/link';
 
 const EMPTY_MATCH = {
   id: '',
@@ -186,6 +187,10 @@ export default function Home() {
           uid: user.uid, 
           name: profile.name, 
           photoURL: profile.photoURL || '',
+          overall: profile.overall || 70,
+          attributes: profile.attributes || { velocidade: 50, defesa: 50, passe: 50, ataque: 50, fisico: 50, finalizacao: 50 },
+          position: profile.position || 'MEI',
+          playStyles: profile.playStyles || [],
           paymentStatus: 'pending'
         };
 
@@ -777,7 +782,7 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
                   <img src={player.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '-0.3px' }}>{player.name}</p>
+                  <Link href={`/perfil/${player.uid}`} style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '-0.3px', color: 'white', textDecoration: 'none' }}>{player.name}</Link>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: player.paymentStatus === 'verified' ? 'var(--primary)' : player.paymentStatus === 'notified' ? 'var(--warning)' : 'var(--error)' }} />
                     <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--secondary)', textTransform: 'uppercase' }}>
@@ -821,7 +826,7 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
                     <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'var(--border)', overflow: 'hidden' }}>
                       <img src={player.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                    <p style={{ fontSize: '14px', fontWeight: '600' }}>{player.name}</p>
+                    <Link href={`/perfil/${player.uid}`} style={{ fontSize: '14px', fontWeight: '600', color: 'white', textDecoration: 'none' }}>{player.name}</Link>
                   </div>
                 ))}
               </div>

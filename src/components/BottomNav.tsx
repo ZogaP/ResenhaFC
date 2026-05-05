@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Trophy, Camera, Wallet, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, Camera, Wallet, HelpCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const navItems = [
@@ -11,7 +11,7 @@ const navItems = [
   { label: 'Ranking', icon: Trophy, href: '/ranking' },
   { label: 'Lances', icon: Camera, href: '/lances' },
   { label: 'Pagar', icon: Wallet, href: '/pagamento' },
-  { label: 'Amigos', icon: UserPlus, href: '/amigos' },
+  { label: 'Ajuda', icon: HelpCircle, href: '/ajuda' },
 ];
 
 export default function BottomNav() {

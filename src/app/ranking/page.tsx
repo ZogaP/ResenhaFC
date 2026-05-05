@@ -7,10 +7,12 @@ import { clsx } from 'clsx';
 import PlayerCard from '@/components/PlayerCard';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import Link from 'next/link';
+import { calculateNewOverall, calculateAttributeChange, getCardType, detectAutoPosition, detectPlayStyle, detectPlayStyles, calculateInformBoost, type PlayerStyle, type PlayStyle } from '@/lib/evolution';
 
 export default function RankingPage() {
-  const [tab, setTab] = useState<'performance' | 'presence'>('performance');
+  const [tab, setTab] = useState<'performance' | 'presence' | 'rising' | 'falling'>('performance');
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [showVoting, setShowVoting] = useState(false);
   const [lastMatch, setLastMatch] = useState<any>(null);
@@ -62,19 +64,125 @@ export default function RankingPage() {
   }, []);
 
   const handleDetailedVote = async (votes: any) => {
-    console.log('Enviando avaliação detalhada:', votes);
-    alert(`Avaliação técnica enviada para ${selectedPlayer.name}!`);
+    if (!selectedPlayer || !user) return;
+
+    try {
+      // 1. Calcular a média desta avaliação (0-10)
+      const ratingsArray = Object.values(votes) as number[];
+      const matchRating = ratingsArray.reduce((a, b) => a + b, 0) / ratingsArray.length;
+
+      // 2. Buscar dados atuais do jogador no Firebase para evolução precisa
+      const playerRef = doc(db, 'users', selectedPlayer.id);
+      const playerSnap = await getDoc(playerRef);
+      
+      if (!playerSnap.exists()) return;
+      const playerData = playerSnap.data();
+
+      // 3. Preparar dados para o motor de evolução
+      const currentOverall = playerData.overall || 50;
+      const recentRatings = playerData.recentRatings || [];
+      const recentAverage = recentRatings.length > 0 
+        ? recentRatings.reduce((a: number, b: number) => a + b, 0) / recentRatings.length 
+        : 5;
+
+      // 4. Calcular novo Overall
+      const newOverall = calculateNewOverall(currentOverall, matchRating, recentAverage);
+
+      // 5. Calcular novos atributos individuais
+      const currentAttrs = playerData.attributes || {
+        velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50
+      };
+
+      const newAttrs: any = { ...currentAttrs };
+      
+      // Mapeamento simplificado das notas para os atributos
+      if (playerData.position === 'GOL') {
+        newAttrs.reflexo = calculateAttributeChange(currentAttrs.reflexo || 50, votes.stat1 || 5);
+        newAttrs.elasticidade = calculateAttributeChange(currentAttrs.elasticidade || 50, votes.stat2 || 5);
+        newAttrs.manejo = calculateAttributeChange(currentAttrs.manejo || 50, votes.stat3 || 5);
+        newAttrs.posicionamento = calculateAttributeChange(currentAttrs.posicionamento || 50, votes.stat4 || 5);
+      } else {
+        newAttrs.finalizacao = calculateAttributeChange(currentAttrs.finalizacao || 50, votes.stat1 || 5);
+        newAttrs.defesa = calculateAttributeChange(currentAttrs.defesa || 50, votes.stat2 || 5);
+        newAttrs.passe = calculateAttributeChange(currentAttrs.passe || 50, votes.stat3 || 5);
+        newAttrs.fisico = calculateAttributeChange(currentAttrs.fisico || 50, votes.stat4 || 5);
+        newAttrs.velocidade = calculateAttributeChange(currentAttrs.velocidade || 50, votes.stat5 || 5);
+        newAttrs.drible = calculateAttributeChange(currentAttrs.drible || 50, votes.stat6 || 5);
+      }
+
+      // 6. Detectar Posição e Estilo
+      const autoPos = detectAutoPosition(newAttrs, playerData.position || 'MEI');
+      const style = detectPlayStyle(newAttrs, newOverall);
+      const playStyles = detectPlayStyles(newAttrs, newOverall);
+
+      // 7. Calcular Streak e Boost (Novo!)
+      let streak = playerData.informStreak || 0;
+      if (matchRating >= 8.5) {
+        streak += 1;
+      } else {
+        streak = 0;
+      }
+      
+      const boost = calculateInformBoost(newOverall, streak);
+      const boostedOverall = newOverall + boost;
+
+      // 8. Atualizar histórico e média recente
+      const updatedRecentRatings = [matchRating, ...recentRatings].slice(0, 5);
+      const today = new Date().toISOString().split('T')[0];
+
+      // 9. Salvar no Firebase
+      await updateDoc(playerRef, {
+        overall: boostedOverall,
+        attributes: newAttrs,
+        recentRatings: updatedRecentRatings,
+        cardType: getCardType(boostedOverall),
+        overallHistory: arrayUnion({ date: today, value: boostedOverall }),
+        autoPosition: autoPos,
+        playStyle: style,
+        playStyles: playStyles,
+        informStreak: streak
+      });
+
+      alert(`Avaliação enviada! ${selectedPlayer.name} ${boost > 0 ? 'ganhou um BOOST de sequência!' : ''} Agora tem OVR ${boostedOverall}.`);
+    } catch (error) {
+      console.error("Erro ao processar evolução:", error);
+      alert("Erro ao enviar avaliação.");
+    }
+
     setShowRatingModal(false);
     setSelectedPlayer(null);
   };
 
-  const sortedData = rankingData;
+  // Filtrar e ordenar dados baseado na aba
+  const getSortedData = () => {
+    let data = [...rankingData];
+    if (tab === 'performance') return data.sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    if (tab === 'presence') return data.sort((a, b) => (b.totalGames || 0) - (a.totalGames || 0));
+    if (tab === 'rising') return data.filter(p => (p.recentRatings?.length || 0) > 0).sort((a, b) => {
+      const aAvg = (a.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (a.recentRatings?.length || 1);
+      const bAvg = (b.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (b.recentRatings?.length || 1);
+      return bAvg - aAvg;
+    });
+    if (tab === 'falling') return data.filter(p => (p.recentRatings?.length || 0) > 0).sort((a, b) => {
+      const aAvg = (a.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (a.recentRatings?.length || 1);
+      const bAvg = (b.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (b.recentRatings?.length || 1);
+      return aAvg - bAvg;
+    });
+    return data;
+  };
+
+  const sortedData = getSortedData();
   const top3 = sortedData.slice(0, 3);
   const others = sortedData.slice(3);
 
-  // Find highlights from real data
-  const highlightPlayer = [...rankingData].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
-  const mostRegularPlayer = [...rankingData].sort((a, b) => (b.games || 0) - (a.games || 0))[0];
+  // Jogadores INFORM (Top 3 por avaliação recente)
+  const informPlayers = [...rankingData]
+    .filter(p => (p.recentRatings?.length || 0) > 0)
+    .sort((a, b) => (b.recentRatings?.[0] || 0) - (a.recentRatings?.[0] || 0))
+    .slice(0, 3);
+
+  const highlightPlayer = informPlayers[0];
+  const mostRegularPlayer = [...rankingData].sort((a, b) => (b.totalGames || 0) - (a.totalGames || 0))[0];
 
   return (
     <div className="fade-in container" style={{ paddingBottom: '100px' }}>
@@ -153,18 +261,74 @@ export default function RankingPage() {
           onClick={() => setTab('presence')}
           style={{ 
             flex: 1, 
-            padding: '14px', 
+            padding: '12px 8px', 
             borderRadius: '14px', 
             background: tab === 'presence' ? 'var(--primary)' : 'transparent',
             color: tab === 'presence' ? 'black' : 'var(--secondary)',
             fontWeight: '800',
-            fontSize: '14px',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            fontSize: '12px',
+            transition: 'all 0.3s'
           }}
         >
           Presença
         </button>
+        <button 
+          onClick={() => setTab('rising')}
+          style={{ 
+            flex: 1, 
+            padding: '12px 8px', 
+            borderRadius: '14px', 
+            background: tab === 'rising' ? 'var(--primary)' : 'transparent',
+            color: tab === 'rising' ? 'black' : 'var(--secondary)',
+            fontWeight: '800',
+            fontSize: '12px',
+            transition: 'all 0.3s'
+          }}
+        >
+          Em Alta 📈
+        </button>
+        <button 
+          onClick={() => setTab('falling')}
+          style={{ 
+            flex: 1, 
+            padding: '12px 8px', 
+            borderRadius: '14px', 
+            background: tab === 'falling' ? 'var(--primary)' : 'transparent',
+            color: tab === 'falling' ? 'black' : 'var(--secondary)',
+            fontWeight: '800',
+            fontSize: '12px',
+            transition: 'all 0.3s'
+          }}
+        >
+          Em Queda 📉
+        </button>
       </div>
+
+      {/* Destaques da Rodada (INFORM) */}
+      {tab === 'performance' && informPlayers.length > 0 && (
+        <div style={{ marginBottom: '3rem' }}>
+          <h3 style={{ margin: '0 0 1.5rem', fontWeight: '900', fontSize: '1.4rem', color: '#FFD700', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Trophy size={24} /> DESTAQUES DA RODADA
+          </h3>
+          <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '20px', paddingLeft: '4px' }}>
+            {informPlayers.map((player) => (
+              <div key={player.id} style={{ flexShrink: 0 }}>
+                <PlayerCard 
+                  name={player.name}
+                  overall={player.overall || 50}
+                  position={player.position || 'MEI'}
+                  photoURL={player.photoURL}
+                  attributes={player.attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
+                  size="sm"
+                  variant="inform"
+                  playStyle={player.playStyle as PlayerStyle}
+                  playStyles={player.playStyles as PlayStyle[]}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Podium Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center', marginBottom: '4rem' }}>
@@ -173,11 +337,13 @@ export default function RankingPage() {
             <div style={{ transform: 'scale(1.1)', zIndex: 10 }}>
               <PlayerCard 
                 name={top3[0].name}
-                overall={Math.round((top3[0].rating || 0) * 10)} 
+                overall={top3[0].overall || 50} 
                 position={top3[0].position || "ATA"}
                 photoURL={top3[0].photoURL}
-                attributes={top3[0].attributes || { ataque: 50, defesa: 50, passe: 50, velocidade: 50, fisico: 50, finalizacao: 50 }}
+                attributes={top3[0].attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
                 size="md"
+                playStyle={top3[0].playStyle as PlayerStyle}
+                playStyles={top3[0].playStyles as PlayStyle[]}
               />
             </div>
             
@@ -186,11 +352,13 @@ export default function RankingPage() {
                 <PlayerCard 
                   key={player.id}
                   name={player.name}
-                  overall={Math.round((player.rating || 0) * 10)}
+                  overall={player.overall || 50}
                   position={player.position || "MEI"}
                   photoURL={player.photoURL}
-                  attributes={player.attributes || { ataque: 50, defesa: 50, passe: 50, velocidade: 50, fisico: 50, finalizacao: 50 }}
+                  attributes={player.attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
                   size="sm"
+                  playStyle={player.playStyle as PlayerStyle}
+                  playStyles={player.playStyles as PlayStyle[]}
                 />
               ))}
             </div>
@@ -219,15 +387,15 @@ export default function RankingPage() {
                   <User size={22} color="var(--secondary)" />
                 )}
               </div>
-              <span style={{ fontWeight: '700', fontSize: '15px' }}>{player.name}</span>
+              <Link href={`/perfil/${player.id}`} style={{ fontWeight: '700', fontSize: '15px', color: 'white', textDecoration: 'none' }}>{player.name}</Link>
             </div>
             
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: '18px', fontWeight: '900', color: tab === 'performance' ? 'var(--primary)' : 'white' }}>
-                {tab === 'performance' ? (player.rating || 0).toFixed(1) : (player.games || 0)}
+                {tab === 'performance' ? (player.overall || 50) : (player.totalGames || 0)}
               </p>
               <p style={{ fontSize: '10px', color: 'var(--secondary)', textTransform: 'uppercase', fontWeight: '800' }}>
-                {tab === 'performance' ? 'Nota' : 'Jogos'}
+                {tab === 'performance' ? 'OVR' : 'Jogos'}
               </p>
             </div>
           </div>

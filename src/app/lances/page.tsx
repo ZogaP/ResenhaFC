@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { transformMediaLink } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 function LancesContent() {
   const { profile } = useAuth();
@@ -236,7 +237,7 @@ function LancesContent() {
                   )}
                 </div>
                 <div>
-                  <p style={{ fontSize: '14px', fontWeight: '700' }}>{lance.author}</p>
+                  <Link href={`/perfil/${lance.uid}`} style={{ fontSize: '14px', fontWeight: '700', color: 'white', textDecoration: 'none' }}>{lance.author}</Link>
                   <p style={{ fontSize: '10px', color: 'var(--secondary)' }}>
                     {formatTime(lance.createdAt)}
                   </p>
@@ -251,12 +252,21 @@ function LancesContent() {
             </div>
 
             {/* Media Content */}
-            <div style={{ width: '100%', aspectRatio: lance.type === 'video' ? '16/9' : '1/1', background: '#000', position: 'relative' }}>
+            <div style={{ 
+              width: '100%', 
+              aspectRatio: lance.type === 'video' ? '16/9' : '1/1', 
+              maxHeight: lance.type === 'video' ? '280px' : 'none',
+              background: '#000', 
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
               {lance.type === 'video' ? (
                 <>
                   <iframe 
                     src={lance.url} 
-                    style={{ width: '100%', height: '100%', border: 'none' }} 
+                    style={{ width: '100%', height: '100%', maxHeight: '280px', border: 'none' }} 
                     allow="autoplay; encrypted-media; picture-in-picture"
                     referrerPolicy="no-referrer"
                     allowFullScreen

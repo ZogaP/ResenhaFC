@@ -51,6 +51,15 @@ interface UserProfile {
   username?: string;
   friends?: string[];
   friendRequests?: string[];
+  // Evolution System (FIFA UT)
+  recentRatings?: number[];
+  isInform?: boolean;
+  cardType?: string;
+  overallHistory?: { date: string; value: number }[];
+  playStyle?: string;
+  autoPosition?: string;
+  playStyles?: any[];
+  informStreak?: number;
 }
 
 interface AuthContextType {

@@ -79,24 +79,24 @@ input, select, textarea {
 }
 
 /* Mobile-first Layout Utilities */
-.container {
-  width: 100%;
-  max-width: 480px; /* Max width for "mobile-like" experience on desktop */
-  margin: 0 auto;
-  min-height: 100vh;
-  padding: 1rem;
-  padding-bottom: calc(80px + var(--safe-area-bottom)); /* Space for bottom nav */
-}
-
 @media (min-width: 768px) {
   body {
     background-color: #000;
+    display: flex;
+    justify-content: center;
   }
-  .container {
-    background-color: var(--background);
-    box-shadow: 0 0 50px rgba(0,0,0,0.5);
-    min-height: 100vh;
-  }
+}
+
+.container {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  background-color: var(--background);
+  min-height: 100vh;
+  position: relative;
+  box-shadow: 0 0 50px rgba(0,0,0,0.5);
+  padding-bottom: calc(90px + var(--safe-area-bottom));
 }
 
 /* Glassmorphism - Simplified for better compatibility on Windows */
@@ -113,9 +113,9 @@ input, select, textarea {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
   height: calc(65px + var(--safe-area-bottom));
-  background: rgba(10, 10, 10, 0.85);
+  background: rgba(10, 10, 10, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   display: flex;
@@ -124,6 +124,21 @@ input, select, textarea {
   border-top: 1px solid var(--border);
   padding-bottom: var(--safe-area-bottom);
   z-index: 1000;
+}
+
+/* Header Correction */
+header.fixed-header {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 500px;
+  z-index: 1001;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
 }
 
 .nav-item {
