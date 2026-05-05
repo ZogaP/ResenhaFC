@@ -267,25 +267,50 @@ function LancesContent() {
             <div style={{ 
               width: '100%', 
               aspectRatio: lance.type === 'video' ? '16/9' : '1/1', 
-              maxHeight: lance.type === 'video' ? '280px' : 'none',
               background: '#000', 
               position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              borderRadius: '16px',
+              overflow: 'hidden',
+              marginBottom: '16px',
+              border: '1px solid var(--border)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
             }}>
               {lance.type === 'video' ? (
                 <>
                   <iframe 
-                    src={lance.url} 
-                    style={{ width: '100%', height: '100%', maxHeight: '280px', border: 'none' }} 
+                    src={transformMediaLink(lance.mediaURL)} 
+                    style={{ 
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%', 
+                      height: '100%', 
+                      border: 'none' 
+                    }} 
                     allow="autoplay; encrypted-media; picture-in-picture"
                     referrerPolicy="no-referrer"
-                    allowFullScreen
                   />
+                  
+                  {/* Expand Overlay Button */}
                   <button 
-                    onClick={() => setFullscreenVideo(lance.url)}
-                    style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 'bold', zIndex: 10 }}
+                    onClick={() => setFullscreenVideo(transformMediaLink(lance.mediaURL))}
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      background: 'rgba(0,0,0,0.6)',
+                      backdropFilter: 'blur(10px)',
+                      color: 'white',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      zIndex: 10
+                    }}
                   >
                     <Maximize size={14} /> EXPANDIR
                   </button>
