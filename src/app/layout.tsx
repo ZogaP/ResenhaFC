@@ -34,16 +34,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className={`${inter.variable} antialiased`}>
         <AuthProvider>
           <div style={{ display: 'flex', justifyContent: 'center', background: '#000', minHeight: '100vh' }}>
-            <div className="container" style={{ position: 'relative', boxShadow: '0 0 100px rgba(0,0,0,0.8)', maxWidth: '500px', width: '100%' }}>
+            <div className="container" style={{ position: 'relative', boxShadow: '0 0 100px rgba(0,0,0,0.8)', maxWidth: '500px', width: '100%', display: 'flex', flexDirection: 'column' }}>
               <Header />
-              <main style={{ paddingTop: '65px' }}>
+              <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {children}
               </main>
               <BottomNav />

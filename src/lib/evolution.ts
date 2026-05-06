@@ -177,7 +177,7 @@ export function detectAutoPosition(attributes: any, currentPosition: string): Au
 export function detectPlayStyle(attributes: any, overall: number): PlayerStyle {
   const { ataque, defesa, passe, velocidade, fisico, finalizacao } = attributes;
   
-  // Resenha styles
+  // LineUp styles
   if (overall < 50) return 'cone';
   if (overall > 88) return 'craque';
 

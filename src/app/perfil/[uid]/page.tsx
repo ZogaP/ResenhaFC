@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { doc, getDoc, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, Trophy, Star, Calendar, Ruler, Weight, Footprints, TrendingUp, TrendingDown, Minus, Info, Sparkles, UserPlus, CheckCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Trophy, Star, Calendar, Ruler, Weight, Footprints, TrendingUp, TrendingDown, Minus, Info, Sparkles, UserPlus, CheckCircle, Lock, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { transformMediaLink } from '@/lib/utils';
 import PlayerCard from '@/components/PlayerCard';
 import { getEvolutionTrend, getStyleMetadata, getPlayStyleMetadata, type PlayerStyle, type PlayStyle } from '@/lib/evolution';
@@ -23,6 +23,11 @@ export default function PerfilPage() {
   const [lances, setLances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { profile } = useAuth();
+
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [showMatchesModal, setShowMatchesModal] = useState(false);
+  const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [matchesList, setMatchesList] = useState<any[]>([]);
 
   const handleSendRequest = async () => {
     if (!user || isOwnProfile) return;
@@ -82,6 +87,41 @@ export default function PerfilPage() {
     return () => unsubscribe();
   }, [uid]);
 
+  // Fetch friends details
+  useEffect(() => {
+    if (showFriendsModal && profileData?.friends) {
+      const fetchFriends = async () => {
+        const friends = await Promise.all(
+          profileData.friends.map(async (fUid: string) => {
+            const snap = await getDoc(doc(db, 'users', fUid));
+            return snap.exists() ? { uid: fUid, ...snap.data() } : null;
+          })
+        );
+        setFriendsList(friends.filter((f: any) => f !== null));
+      };
+      fetchFriends();
+    }
+  }, [showFriendsModal, profileData?.friends]);
+
+  // Fetch matches history
+  useEffect(() => {
+    if (showMatchesModal && uid) {
+      const q = query(
+        collection(db, 'matches'),
+        orderBy('date', 'desc')
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const filtered = all.filter((m: any) => 
+          m.participants?.some((p: any) => p.uid === uid) ||
+          m.waitingList?.some((p: any) => p.uid === uid)
+        );
+        setMatchesList(filtered);
+      });
+      return () => unsubscribe();
+    }
+  }, [showMatchesModal, uid]);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', height: '80vh', alignItems: 'center', justifyContent: 'center' }}>
@@ -107,8 +147,16 @@ export default function PerfilPage() {
   const attrs = profileData.attributes || {};
   const isGoalkeeper = profileData.position === 'GOL';
 
+  // Privacy: determine if the viewer can see the full profile
+  const isFriend = profile?.friends?.includes(uid) || false;
+  const isProfilePrivate = profileData.profileVisibility === 'privado';
+  const canViewFull = isOwnProfile || !isProfilePrivate || isFriend;
+
+
+
   return (
-    <div className="fade-in container" style={{ paddingBottom: '100px' }}>
+    <>
+    <div className="fade-in" style={{ paddingBottom: '100px' }}>
       {/* Back Button */}
       <button onClick={() => router.back()} style={{ color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '1.5rem', paddingTop: '1rem' }}>
         <ArrowLeft size={20} /> Voltar
@@ -171,21 +219,38 @@ export default function PerfilPage() {
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             {isOwnProfile ? (
-              <Link href="/amigos" style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'rgba(34, 197, 94, 0.1)',
-                color: 'var(--primary)',
-                padding: '8px 16px',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontWeight: '800',
-                textDecoration: 'none',
-                border: '1px solid rgba(34, 197, 94, 0.2)'
-              }}>
-                <UserPlus size={16} /> MEUS AMIGOS
-              </Link>
+              <>
+                <Link href="/amigos" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  color: 'var(--primary)',
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(34, 197, 94, 0.2)'
+                }}>
+                  <UserPlus size={16} /> MEUS AMIGOS
+                </Link>
+                <Link href="/setup-profile" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'var(--surface)',
+                  color: 'var(--secondary)',
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  textDecoration: 'none',
+                  border: '1px solid var(--border)'
+                }}>
+                  CONFIGURAÇÕES
+                </Link>
+              </>
             ) : (
               <button 
                 onClick={handleSendRequest}
@@ -211,22 +276,50 @@ export default function PerfilPage() {
               </button>
             )}
           </div>
-
           <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', width: '100%', marginTop: '1rem' }}>
-            <div style={{ textAlign: 'center' }}>
+            <button 
+              onClick={() => setShowMatchesModal(true)}
+              style={{ background: 'none', border: 'none', color: 'white', textAlign: 'center', cursor: 'pointer' }}
+            >
               <p style={{ fontSize: '1.4rem', fontWeight: '900' }}>{profileData.totalGames || 0}</p>
               <p style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '700' }}>PARTIDAS</p>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '1.4rem', fontWeight: '900' }}>{profileData.username ? `@${profileData.username}` : '---'}</p>
-              <p style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '700' }}>IDENTIDADE</p>
-            </div>
+            </button>
+            <button 
+              onClick={() => setShowFriendsModal(true)}
+              style={{ background: 'none', border: 'none', color: 'white', textAlign: 'center', cursor: 'pointer' }}
+            >
+              <p style={{ fontSize: '1.4rem', fontWeight: '900' }}>{profileData.friends?.length || 0}</p>
+              <p style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '700' }}>AMIGOS</p>
+            </button>
           </div>
+
+          {/* Privacy Badge */}
+          {isProfilePrivate && !isOwnProfile && (
+            <div style={{ marginTop: '12px' }}>
+              <span className="badge-visibility private" style={{ fontSize: '11px' }}>
+                <Lock size={12} /> PERFIL PRIVADO
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Evolution Graph (SVG) */}
-      {profileData.overallHistory && profileData.overallHistory.length > 1 && (
+      {/* Locked Profile Message */}
+      {!canViewFull && (
+        <div className="glass" style={{ 
+          padding: '2rem', borderRadius: '24px', marginBottom: '1.5rem', textAlign: 'center',
+          borderLeft: '6px solid var(--warning)'
+        }}>
+          <Lock size={36} color="var(--warning)" style={{ marginBottom: '12px' }} />
+          <h3 style={{ fontWeight: '800', marginBottom: '8px' }}>Perfil Privado</h3>
+          <p style={{ fontSize: '13px', color: 'var(--secondary)', lineHeight: '1.5' }}>
+            Este jogador tem o perfil privado. Adicione como amigo para ver atributos, estatísticas e lances.
+          </p>
+        </div>
+      )}
+
+      {/* Evolution Graph (SVG) — Only when viewable */}
+      {canViewFull && profileData.overallHistory && profileData.overallHistory.length > 1 && (
         <div className="glass" style={{ padding: '1.5rem', borderRadius: '24px', marginBottom: '1.5rem' }}>
           <h3 style={{ fontWeight: '800', marginBottom: '1.5rem', fontSize: '14px', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TrendingUp size={18} /> EVOLUÇÃO DE OVERALL
@@ -266,8 +359,8 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* Play Style Card */}
-      {profileData.playStyle && (
+      {/* Play Style Card — Only when viewable */}
+      {canViewFull && profileData.playStyle && (
         <div className="glass" style={{ 
           padding: '1.5rem', 
           borderRadius: '24px', 
@@ -290,8 +383,8 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* PlayStyles List */}
-      {profileData.playStyles && profileData.playStyles.length > 0 && (
+      {/* PlayStyles List — Only when viewable */}
+      {canViewFull && profileData.playStyles && profileData.playStyles.length > 0 && (
         <div className="glass" style={{ padding: '1.5rem', borderRadius: '24px', marginBottom: '1.5rem' }}>
           <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={18} /> HABILIDADES ESPECIAIS
@@ -329,8 +422,8 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* Bio / Physical */}
-      {(profileData.altura || profileData.peso || profileData.chuteira) && (
+      {/* Bio / Physical — Only when viewable */}
+      {canViewFull && (profileData.altura || profileData.peso || profileData.chuteira) && (
         <div className="glass" style={{ padding: '1.5rem', borderRadius: '20px', marginBottom: '1.5rem' }}>
           <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)' }}>INFORMAÇÕES</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
@@ -359,97 +452,305 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* Attributes */}
-      <div className="glass" style={{ padding: '1.5rem', borderRadius: '20px', marginBottom: '1.5rem' }}>
-        <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)' }}>ATRIBUTOS</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {isGoalkeeper ? (
-            <>
-              {[
-                { label: 'Elasticidade', val: attrs.elasticidade },
-                { label: 'Reflexo', val: attrs.reflexo },
-                { label: 'Manejo', val: attrs.manejo },
-                { label: 'Posicionamento', val: attrs.posicionamento },
-              ].map(a => a.val != null && (
-                <div key={a.label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700' }}>{a.label}</span>
-                    <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
+      {/* Attributes — Only when viewable */}
+      {canViewFull && 
+        <div className="glass" style={{ padding: '1.5rem', borderRadius: '20px', marginBottom: '1.5rem' }}>
+          <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)' }}>ATRIBUTOS</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {isGoalkeeper ? (
+              <>
+                {[
+                  { label: 'Elasticidade', val: attrs.elasticidade },
+                  { label: 'Reflexo', val: attrs.reflexo },
+                  { label: 'Manejo', val: attrs.manejo },
+                  { label: 'Posicionamento', val: attrs.posicionamento },
+                ].map(a => a.val != null && (
+                  <div key={a.label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700' }}>{a.label}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
+                    </div>
+                    <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
+                      <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
+                    </div>
                   </div>
-                  <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
-                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
+                ))}
+              </>
+            ) : (
+              <>
+                {[
+                  { label: 'Velocidade', val: attrs.velocidade },
+                  { label: 'Finalização', val: attrs.finalizacao },
+                  { label: 'Passe', val: attrs.passe },
+                  { label: 'Drible', val: attrs.drible },
+                  { label: 'Defesa', val: attrs.defesa },
+                  { label: 'Físico', val: attrs.fisico },
+                ].map(a => a.val != null && (
+                  <div key={a.label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700' }}>{a.label}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
+                    </div>
+                    <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
+                      <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      }
+
+      {/* Highlights / Lances — Only when viewable */}
+      {canViewFull && 
+        <div>
+          <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)' }}>
+            LANCES PUBLICADOS ({lances.length})
+          </h3>
+          {lances.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', background: 'var(--surface)', borderRadius: '20px', border: '1px dashed var(--border)' }}>
+              <p style={{ color: 'var(--secondary)', fontWeight: '600', fontSize: '14px' }}>Nenhum lance publicado ainda.</p>
+            </div>
           ) : (
-            <>
-              {[
-                { label: 'Velocidade', val: attrs.velocidade },
-                { label: 'Finalização', val: attrs.finalizacao },
-                { label: 'Passe', val: attrs.passe },
-                { label: 'Drible', val: attrs.drible },
-                { label: 'Defesa', val: attrs.defesa },
-                { label: 'Físico', val: attrs.fisico },
-              ].map(a => a.val != null && (
-                <div key={a.label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700' }}>{a.label}</span>
-                    <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)' }}>{a.val}</span>
-                  </div>
-                  <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px' }}>
-                    <div style={{ height: '100%', width: `${a.val}%`, background: 'var(--primary-gradient)', borderRadius: '3px' }} />
-                  </div>
-                </div>
-              ))}
-            </>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {lances.map(lance => {
+                return (
+                  <motion.div
+                    key={lance.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ background: 'var(--surface)', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border)' }}
+                  >
+                    <div style={{ width: '100%', aspectRatio: '1/1', background: '#000', position: 'relative' }}>
+                      {lance.type === 'video' ? (
+                        <iframe
+                          src={lance.url}
+                          style={{ width: '100%', height: '100%', border: 'none' }}
+                          allow="autoplay; encrypted-media"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <img
+                          src={lance.url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      )}
+                    </div>
+                    <div style={{ padding: '10px' }}>
+                      <p style={{ fontSize: '12px', color: 'var(--secondary)', lineHeight: '1.4' }}>{lance.description}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           )}
         </div>
-      </div>
-
-      {/* Highlights / Lances */}
-      <div>
-        <h3 style={{ fontWeight: '800', marginBottom: '1rem', fontSize: '14px', color: 'var(--secondary)' }}>
-          LANCES PUBLICADOS ({lances.length})
-        </h3>
-        {lances.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', background: 'var(--surface)', borderRadius: '20px', border: '1px dashed var(--border)' }}>
-            <p style={{ color: 'var(--secondary)', fontWeight: '600', fontSize: '14px' }}>Nenhum lance publicado ainda.</p>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {lances.map(lance => (
-              <motion.div
-                key={lance.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{ background: 'var(--surface)', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border)' }}
-              >
-                <div style={{ width: '100%', aspectRatio: '1/1', background: '#000', position: 'relative' }}>
-                  {lance.type === 'video' ? (
-                    <iframe
-                      src={lance.url}
-                      style={{ width: '100%', height: '100%', border: 'none' }}
-                      allow="autoplay; encrypted-media"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <img
-                      src={lance.url}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  )}
-                </div>
-                <div style={{ padding: '10px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--secondary)', lineHeight: '1.4' }}>{lance.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
+      }
     </div>
+
+    {/* Friends Full Screen View */}
+    <AnimatePresence>
+      {showFriendsModal && (
+        <motion.div 
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            width: '100%', maxWidth: '500px', margin: '0 auto', height: '100vh',
+            background: 'var(--background)', zIndex: 99999, 
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+          }}
+        >
+          {/* Header */}
+          <header style={{ 
+            display: 'flex', alignItems: 'center', padding: '1.5rem', 
+            borderBottom: '1px solid var(--border)', background: 'rgba(10, 10, 10, 0.8)', 
+            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10
+          }}>
+            <button onClick={() => setShowFriendsModal(false)} style={{ padding: '10px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', marginRight: '1rem' }}>
+              <ArrowLeft size={20} />
+            </button>
+            <h3 style={{ fontWeight: '900', fontSize: '1.2rem', margin: 0 }}>Amigos ({friendsList.length})</h3>
+          </header>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+            {friendsList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--secondary)' }}>
+                <p style={{ fontSize: '14px', fontWeight: '700' }}>Nenhum amigo ainda.</p>
+              </div>
+            ) : (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', 
+                gap: '12px', 
+                maxWidth: '800px', 
+                margin: '0 auto',
+                justifyContent: 'center' 
+              }}>
+                {friendsList.map(friend => (
+                  <motion.div 
+                    key={friend.uid} 
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => { setShowFriendsModal(false); router.push(`/perfil/${friend.uid}`); }} 
+                    style={{ 
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', 
+                      gap: '12px', padding: '20px', background: 'var(--surface)', 
+                      borderRadius: '24px', border: '1px solid var(--border)', cursor: 'pointer',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ width: '80px', height: '80px', borderRadius: '24px', overflow: 'hidden', border: '2px solid var(--primary)', boxShadow: '0 10px 20px rgba(0,0,0,0.3)' }}>
+                      <img src={friend.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: '900', margin: '0 0 4px 0' }}>{friend.name}</p>
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--primary)', background: 'rgba(29, 185, 84, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>{friend.position || 'Jogador'}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* Matches Full Screen View */}
+    <AnimatePresence>
+      {showMatchesModal && (
+        <motion.div 
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            width: '100%', maxWidth: '500px', margin: '0 auto', height: '100vh',
+            background: 'var(--background)', zIndex: 99999, 
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+          }}
+        >
+          {/* Header */}
+          <header style={{ 
+            display: 'flex', alignItems: 'center', padding: '1.5rem', 
+            borderBottom: '1px solid var(--border)', background: 'rgba(10, 10, 10, 0.8)', 
+            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10
+          }}>
+            <button onClick={() => setShowMatchesModal(false)} style={{ padding: '10px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', marginRight: '1rem' }}>
+              <ArrowLeft size={20} />
+            </button>
+            <h3 style={{ fontWeight: '900', fontSize: '1.2rem', margin: 0 }}>Histórico de Partidas</h3>
+          </header>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+            <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+              {matchesList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--secondary)' }}>
+                  <p style={{ fontSize: '14px', fontWeight: '700' }}>Nenhuma partida registrada.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {matchesList.map((match: any) => {
+                    const userTeam = match.teamA?.some((p: any) => p.uid === uid) ? 'A' : 
+                                   match.teamB?.some((p: any) => p.uid === uid) ? 'B' : null;
+                    
+                    const isWin = (match.winner === 'A' && userTeam === 'A') || (match.winner === 'B' && userTeam === 'B');
+                    const isLoss = (match.winner && match.winner !== userTeam && userTeam !== null);
+                    const isDraw = match.winner === 'Draw';
+                    const isOngoing = !match.winner && match.status !== 'finished';
+
+                    let statusColor = 'var(--secondary)';
+                    let statusText = 'FINALIZADA';
+                    if (isWin) { statusColor = '#22c55e'; statusText = 'VITÓRIA'; }
+                    else if (isLoss) { statusColor = '#ef4444'; statusText = 'DERROTA'; }
+                    else if (isDraw) { statusColor = '#94a3b8'; statusText = 'EMPATE'; }
+                    else if (isOngoing) { statusColor = '#f59e0b'; statusText = 'EM ANDAMENTO'; }
+
+                    const participantData = match.finalParticipants?.find((p: any) => p.uid === uid);
+                    const pGoals = participantData?.goals || 0;
+                    const pAssists = participantData?.assists || 0;
+                    const pMinutes = Math.floor((participantData?.minutesPlayed || 0) / 60);
+
+                    return (
+                      <motion.div 
+                        key={match.id} 
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => { setShowMatchesModal(false); router.push(`/partida/${match.id}`); }} 
+                        style={{ 
+                          padding: '0', 
+                          background: 'var(--surface)', 
+                          borderRadius: '20px', 
+                          border: '1px solid var(--border)', 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          overflow: 'hidden',
+                          minHeight: '80px',
+                          position: 'relative'
+                        }}
+                      >
+                        {/* Result Color Bar */}
+                        <div style={{ width: '6px', flexShrink: 0, background: statusColor }} />
+                        
+                        <div style={{ flex: 1, padding: '12px 15px', display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                          {/* Left: Result */}
+                          <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: '60px' }}>
+                            <span style={{ fontSize: '10px', fontWeight: '900', color: statusColor }}>{statusText}</span>
+                            <span style={{ fontSize: '8px', color: 'var(--secondary)', fontWeight: '700', textTransform: 'uppercase' }}>{match.type || 'Pelada'}</span>
+                          </div>
+
+                          {/* Stats: G / A / M */}
+                          <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'center', minWidth: 0 }}>
+                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
+                              <p style={{ fontSize: '12px', fontWeight: '900', color: pGoals > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pGoals}</p>
+                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>GOL</p>
+                            </div>
+                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
+                              <p style={{ fontSize: '12px', fontWeight: '900', color: pAssists > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pAssists}</p>
+                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>AST</p>
+                            </div>
+                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
+                              <p style={{ fontSize: '12px', fontWeight: '900', margin: 0 }}>{pMinutes}'</p>
+                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>MIN</p>
+                            </div>
+                          </div>
+
+                          {/* Center: Score */}
+                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                            <p style={{ fontSize: '14px', fontWeight: '900', letterSpacing: '0.5px', fontFamily: 'monospace', margin: 0 }}>
+                              {match.scoreA ?? 0}<span style={{ color: 'var(--secondary)', fontSize: '10px', margin: '0 1px' }}>-</span>{match.scoreB ?? 0}
+                            </p>
+                          </div>
+
+                          {/* Right: Date */}
+                          <div style={{ textAlign: 'right', minWidth: '45px', flexShrink: 0 }}>
+                            <p style={{ fontSize: '8px', fontWeight: '900', margin: '0 0 1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{match.title?.split(' ')[0] || 'Arena'}</p>
+                            <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(match.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
+                          </div>
+                        </div>
+
+                        {/* MVP / Winner Tag */}
+                        {match.mvp === uid && (
+                          <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                            MVP
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }

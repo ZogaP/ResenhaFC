@@ -44,16 +44,18 @@ export default function LoginPage() {
           style={{ 
             width: '80px', 
             height: '80px', 
-            background: 'var(--primary-gradient)', 
-            borderRadius: '20px',
+            background: 'var(--surface)', 
+            borderRadius: '24px',
             margin: '0 auto 1rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 30px var(--primary-glow)'
+            boxShadow: '0 0 40px rgba(29, 185, 84, 0.2)',
+            border: '1px solid var(--border)',
+            overflow: 'hidden'
           }}
         >
-          <LogIn size={40} color="white" />
+          <img src="/logo.png" alt="LineUp Logo" style={{ width: '60%', height: '60%', objectFit: 'contain' }} />
         </motion.div>
         <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>LineUp</h1>
         <p style={{ color: 'var(--secondary)', marginTop: '0.5rem' }}>Entre para entrar em campo</p>

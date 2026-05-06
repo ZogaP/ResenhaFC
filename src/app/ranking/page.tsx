@@ -1,518 +1,483 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Trophy, Star, TrendingUp, Calendar, Medal, User } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { clsx } from 'clsx';
-import PlayerCard from '@/components/PlayerCard';
+import React, { useState, useEffect } from 'react';
+import { 
+  Shield, Users, Trophy, Plus, ChevronRight, 
+  Settings, UserPlus, Star, Calendar, 
+  MoreHorizontal, LogOut, ArrowLeft,
+  Mail, Search, Trash2, Camera
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { 
+  collection, query, where, onSnapshot, doc, 
+  addDoc, updateDoc, arrayUnion, arrayRemove, 
+  orderBy, limit, getDocs, getDoc
+} from 'firebase/firestore';
 import Link from 'next/link';
-import { calculateNewOverall, calculateAttributeChange, getCardType, detectAutoPosition, detectPlayStyle, detectPlayStyles, calculateInformBoost, type PlayerStyle, type PlayStyle } from '@/lib/evolution';
+import PlayerCard from '@/components/PlayerCard';
+import LancesFeed from '@/components/LancesFeed';
 
-export default function RankingPage() {
-  const [tab, setTab] = useState<'performance' | 'presence' | 'rising' | 'falling'>('performance');
-  const [rankingData, setRankingData] = useState<any[]>([]);
-  const [showVoting, setShowVoting] = useState(false);
-  const [lastMatch, setLastMatch] = useState<any>(null);
-  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
+export default function GroupsPage() {
   const { user, profile } = useAuth();
+  const [groups, setGroups] = useState<any[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [groupMatches, setGroupMatches] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'members' | 'ranking' | 'matches' | 'lances'>('members');
 
-  // Fetch real ranking data
-  React.useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy(tab === 'performance' ? 'rating' : 'games', 'desc'), limit(50));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRankingData(users);
+  // Search users state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'groups'),
+      where('memberIds', 'array-contains', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const groupsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGroups(groupsData);
+      setLoading(false);
     });
+
     return () => unsubscribe();
-  }, [tab]);
+  }, [user]);
 
-  // Logic to detect if match just ended
-  React.useEffect(() => {
-    const fetchLastMatch = async () => {
-      const q = query(
-        collection(db, 'matches'),
-        orderBy('createdAt', 'desc'),
-        limit(1)
-      );
-      
-      onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const matchData: any = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-          const now = new Date();
-          const todayStr = now.toLocaleDateString('pt-BR');
-          
-          // Check if match is from today and ended
-          if (matchData.date === todayStr || matchData.date === now.toISOString().split('T')[0]) {
-            const [hours, minutes] = (matchData.timeEnd || '00:00').split(':');
-            const endMatchTime = new Date();
-            endMatchTime.setHours(parseInt(hours), parseInt(minutes), 0);
-            
-            // Show voting if it's after match end and before midnight
-            if (now > endMatchTime) {
-              setLastMatch(matchData);
-              setShowVoting(true);
-            }
-          }
-        }
+  useEffect(() => {
+    if (!selectedGroup) return;
+
+    const q = query(
+      collection(db, 'matches'),
+      where('groupId', '==', selectedGroup.id)
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const matches = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      matches.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
       });
-    };
-    fetchLastMatch();
-  }, []);
+      setGroupMatches(matches);
+    });
 
-  const handleDetailedVote = async (votes: any) => {
-    if (!selectedPlayer || !user) return;
+    return () => unsubscribe();
+  }, [selectedGroup]);
 
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim() || !user || !profile) return;
+    
     try {
-      // 1. Calcular a média desta avaliação (0-10)
-      const ratingsArray = Object.values(votes) as number[];
-      const matchRating = ratingsArray.reduce((a, b) => a + b, 0) / ratingsArray.length;
-
-      // 2. Buscar dados atuais do jogador no Firebase para evolução precisa
-      const playerRef = doc(db, 'users', selectedPlayer.id);
-      const playerSnap = await getDoc(playerRef);
-      
-      if (!playerSnap.exists()) return;
-      const playerData = playerSnap.data();
-
-      // 3. Preparar dados para o motor de evolução
-      const currentOverall = playerData.overall || 50;
-      const recentRatings = playerData.recentRatings || [];
-      const recentAverage = recentRatings.length > 0 
-        ? recentRatings.reduce((a: number, b: number) => a + b, 0) / recentRatings.length 
-        : 5;
-
-      // 4. Calcular novo Overall
-      const newOverall = calculateNewOverall(currentOverall, matchRating, recentAverage);
-
-      // 5. Calcular novos atributos individuais
-      const currentAttrs = playerData.attributes || {
-        velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50
+      const newGroup = {
+        name: newGroupName.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: user.uid,
+        memberIds: [user.uid],
+        members: [{
+          uid: user.uid,
+          name: profile.name,
+          photoURL: profile.photoURL || '',
+          role: 'admin',
+          type: 'mensalista'
+        }],
+        invitedUids: [],
+        matches: [],
+        visibility: 'private'
       };
 
-      const newAttrs: any = { ...currentAttrs };
-      
-      // Mapeamento simplificado das notas para os atributos
-      if (playerData.position === 'GOL') {
-        newAttrs.reflexo = calculateAttributeChange(currentAttrs.reflexo || 50, votes.stat1 || 5);
-        newAttrs.elasticidade = calculateAttributeChange(currentAttrs.elasticidade || 50, votes.stat2 || 5);
-        newAttrs.manejo = calculateAttributeChange(currentAttrs.manejo || 50, votes.stat3 || 5);
-        newAttrs.posicionamento = calculateAttributeChange(currentAttrs.posicionamento || 50, votes.stat4 || 5);
-      } else {
-        newAttrs.finalizacao = calculateAttributeChange(currentAttrs.finalizacao || 50, votes.stat1 || 5);
-        newAttrs.defesa = calculateAttributeChange(currentAttrs.defesa || 50, votes.stat2 || 5);
-        newAttrs.passe = calculateAttributeChange(currentAttrs.passe || 50, votes.stat3 || 5);
-        newAttrs.fisico = calculateAttributeChange(currentAttrs.fisico || 50, votes.stat4 || 5);
-        newAttrs.velocidade = calculateAttributeChange(currentAttrs.velocidade || 50, votes.stat5 || 5);
-        newAttrs.drible = calculateAttributeChange(currentAttrs.drible || 50, votes.stat6 || 5);
-      }
-
-      // 6. Detectar Posição e Estilo
-      const autoPos = detectAutoPosition(newAttrs, playerData.position || 'MEI');
-      const style = detectPlayStyle(newAttrs, newOverall);
-      const playStyles = detectPlayStyles(newAttrs, newOverall);
-
-      // 7. Calcular Streak e Boost (Novo!)
-      let streak = playerData.informStreak || 0;
-      if (matchRating >= 8.5) {
-        streak += 1;
-      } else {
-        streak = 0;
-      }
-      
-      const boost = calculateInformBoost(newOverall, streak);
-      const boostedOverall = newOverall + boost;
-
-      // 8. Atualizar histórico e média recente
-      const updatedRecentRatings = [matchRating, ...recentRatings].slice(0, 5);
-      const today = new Date().toISOString().split('T')[0];
-
-      // 9. Salvar no Firebase
-      await updateDoc(playerRef, {
-        overall: boostedOverall,
-        attributes: newAttrs,
-        recentRatings: updatedRecentRatings,
-        cardType: getCardType(boostedOverall),
-        overallHistory: arrayUnion({ date: today, value: boostedOverall }),
-        autoPosition: autoPos,
-        playStyle: style,
-        playStyles: playStyles,
-        informStreak: streak
-      });
-
-      alert(`Avaliação enviada! ${selectedPlayer.name} ${boost > 0 ? 'ganhou um BOOST de sequência!' : ''} Agora tem OVR ${boostedOverall}.`);
-    } catch (error) {
-      console.error("Erro ao processar evolução:", error);
-      alert("Erro ao enviar avaliação.");
+      await addDoc(collection(db, 'groups'), newGroup);
+      setNewGroupName('');
+      setShowCreateModal(false);
+    } catch (e) {
+      alert("Erro ao criar grupo.");
     }
-
-    setShowRatingModal(false);
-    setSelectedPlayer(null);
   };
 
-  // Filtrar e ordenar dados baseado na aba
-  const getSortedData = () => {
-    let data = [...rankingData];
-    if (tab === 'performance') return data.sort((a, b) => (b.overall || 0) - (a.overall || 0));
-    if (tab === 'presence') return data.sort((a, b) => (b.totalGames || 0) - (a.totalGames || 0));
-    if (tab === 'rising') return data.filter(p => (p.recentRatings?.length || 0) > 0).sort((a, b) => {
-      const aAvg = (a.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (a.recentRatings?.length || 1);
-      const bAvg = (b.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (b.recentRatings?.length || 1);
-      return bAvg - aAvg;
-    });
-    if (tab === 'falling') return data.filter(p => (p.recentRatings?.length || 0) > 0).sort((a, b) => {
-      const aAvg = (a.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (a.recentRatings?.length || 1);
-      const bAvg = (b.recentRatings || []).reduce((sum: number, r: number) => sum + r, 0) / (b.recentRatings?.length || 1);
-      return aAvg - bAvg;
-    });
-    return data;
+  const handleSearchUsers = async (q: string) => {
+    setSearchQuery(q);
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const cleanQ = q.toLowerCase().trim();
+      const usersRef = collection(db, 'users');
+      // Fetch a broader set and filter client-side for better name matching
+      const snap = await getDocs(query(usersRef, limit(50)));
+      const filtered = snap.docs
+        .map(doc => ({ uid: doc.id, ...doc.data() }))
+        .filter((u: any) => 
+          u.name?.toLowerCase().includes(cleanQ) || 
+          u.username?.toLowerCase().includes(cleanQ)
+        )
+        .slice(0, 5);
+      setSearchResults(filtered);
+    } catch (e) {
+      console.error(e);
+    }
+    setSearching(false);
   };
 
-  const sortedData = getSortedData();
-  const top3 = sortedData.slice(0, 3);
-  const others = sortedData.slice(3);
+  const handleAddMember = async (targetUser: any, type: 'mensalista' | 'avulso') => {
+    if (!selectedGroup || !targetUser.uid) return;
+    
+    const groupRef = doc(db, 'groups', selectedGroup.id);
+    const newMember = {
+      uid: targetUser.uid,
+      name: targetUser.name,
+      photoURL: targetUser.photoURL || '',
+      role: 'player',
+      type: type
+    };
 
-  // Jogadores INFORM (Top 3 por avaliação recente)
-  const informPlayers = [...rankingData]
-    .filter(p => (p.recentRatings?.length || 0) > 0)
-    .sort((a, b) => (b.recentRatings?.[0] || 0) - (a.recentRatings?.[0] || 0))
-    .slice(0, 3);
+    try {
+      await updateDoc(groupRef, {
+        memberIds: arrayUnion(targetUser.uid),
+        members: arrayUnion(newMember)
+      });
+      setShowInviteModal(false);
+      setSearchQuery('');
+      setSearchResults([]);
+    } catch (e) {
+      alert("Erro ao adicionar membro.");
+    }
+  };
 
-  const highlightPlayer = informPlayers[0];
-  const mostRegularPlayer = [...rankingData].sort((a, b) => (b.totalGames || 0) - (a.totalGames || 0))[0];
+  const handleRemoveMember = async (memberUid: string) => {
+    if (!selectedGroup || memberUid === selectedGroup.createdBy) return;
+    if (!confirm("Remover este membro do grupo?")) return;
 
-  return (
-    <div className="fade-in container" style={{ paddingBottom: '100px' }}>
-      <header style={{ marginBottom: '2rem', paddingTop: '1rem' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Ranking Geral</h1>
-        <p style={{ color: 'var(--secondary)' }}>Os melhores da temporada</p>
-      </header>
+    const groupRef = doc(db, 'groups', selectedGroup.id);
+    const memberToRemove = selectedGroup.members.find((m: any) => m.uid === memberUid);
 
-      {/* Post-Match Voting Section */}
-      {showVoting && lastMatch && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ 
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
-            padding: '1.5rem', 
-            borderRadius: '24px', 
-            marginBottom: '2.5rem',
-            color: 'white',
-            boxShadow: '0 10px 25px rgba(16, 185, 129, 0.3)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.2rem' }}>
-            <div>
-              <h3 style={{ fontWeight: '900', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Star size={20} fill="white" /> EVOLUÇÃO TÉCNICA
-              </h3>
-              <p style={{ fontSize: '12px', fontWeight: '600', opacity: 0.9 }}>Avalie o desempenho dos seus companheiros de hoje.</p>
-            </div>
-            <button onClick={() => setShowVoting(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>✕</button>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '10px' }}>
-            {lastMatch.participants?.filter((p: any) => p.uid !== user?.uid).map((player: any) => (
-              <div 
-                key={player.uid} 
-                onClick={() => { setSelectedPlayer(player); setShowRatingModal(true); }}
-                style={{ flex: '0 0 85px', textAlign: 'center', cursor: 'pointer' }}
-              >
-                <div style={{ width: '65px', height: '65px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', margin: '0 auto 8px', overflow: 'hidden', border: '2px solid white', padding: '2px' }}>
-                  <img src={player.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}`} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                </div>
-                <p style={{ fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name.split(' ')[0]}</p>
-                <span style={{ fontSize: '9px', fontWeight: '900', background: 'white', color: '#059669', padding: '2px 6px', borderRadius: '6px', textTransform: 'uppercase' }}>AVALIAR</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+    try {
+      await updateDoc(groupRef, {
+        memberIds: arrayRemove(memberUid),
+        members: arrayRemove(memberToRemove)
+      });
+    } catch (e) {
+      alert("Erro ao remover membro.");
+    }
+  };
 
-      {/* Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        background: 'var(--surface)', 
-        padding: '6px', 
-        borderRadius: '18px', 
-        marginBottom: '2.5rem',
-        border: '1px solid var(--border)'
-      }}>
-        <button 
-          onClick={() => setTab('performance')}
-          style={{ 
-            flex: 1, 
-            padding: '14px', 
-            borderRadius: '14px', 
-            background: tab === 'performance' ? 'var(--primary)' : 'transparent',
-            color: tab === 'performance' ? 'black' : 'var(--secondary)',
-            fontWeight: '800',
-            fontSize: '14px',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-        >
-          Desempenho
-        </button>
-        <button 
-          onClick={() => setTab('presence')}
-          style={{ 
-            flex: 1, 
-            padding: '12px 8px', 
-            borderRadius: '14px', 
-            background: tab === 'presence' ? 'var(--primary)' : 'transparent',
-            color: tab === 'presence' ? 'black' : 'var(--secondary)',
-            fontWeight: '800',
-            fontSize: '12px',
-            transition: 'all 0.3s'
-          }}
-        >
-          Presença
-        </button>
-        <button 
-          onClick={() => setTab('rising')}
-          style={{ 
-            flex: 1, 
-            padding: '12px 8px', 
-            borderRadius: '14px', 
-            background: tab === 'rising' ? 'var(--primary)' : 'transparent',
-            color: tab === 'rising' ? 'black' : 'var(--secondary)',
-            fontWeight: '800',
-            fontSize: '12px',
-            transition: 'all 0.3s'
-          }}
-        >
-          Em Alta 📈
-        </button>
-        <button 
-          onClick={() => setTab('falling')}
-          style={{ 
-            flex: 1, 
-            padding: '12px 8px', 
-            borderRadius: '14px', 
-            background: tab === 'falling' ? 'var(--primary)' : 'transparent',
-            color: tab === 'falling' ? 'black' : 'var(--secondary)',
-            fontWeight: '800',
-            fontSize: '12px',
-            transition: 'all 0.3s'
-          }}
-        >
-          Em Queda 📉
-        </button>
-      </div>
+  const handlePromoteToMensalista = async (memberUid: string) => {
+    if (!selectedGroup) return;
+    const groupRef = doc(db, 'groups', selectedGroup.id);
+    const updatedMembers = selectedGroup.members.map((m: any) => 
+      m.uid === memberUid ? { ...m, type: 'mensalista' } : m
+    );
 
-      {/* Destaques da Rodada (INFORM) */}
-      {tab === 'performance' && informPlayers.length > 0 && (
-        <div style={{ marginBottom: '3rem' }}>
-          <h3 style={{ margin: '0 0 1.5rem', fontWeight: '900', fontSize: '1.4rem', color: '#FFD700', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Trophy size={24} /> DESTAQUES DA RODADA
-          </h3>
-          <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '20px', paddingLeft: '4px' }}>
-            {informPlayers.map((player) => (
-              <div key={player.id} style={{ flexShrink: 0 }}>
-                <PlayerCard 
-                  name={player.name}
-                  overall={player.overall || 50}
-                  position={player.position || 'MEI'}
-                  photoURL={player.photoURL}
-                  attributes={player.attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
-                  size="sm"
-                  variant="inform"
-                  playStyle={player.playStyle as PlayerStyle}
-                  playStyles={player.playStyles as PlayStyle[]}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    try {
+      await updateDoc(groupRef, { members: updatedMembers });
+    } catch (e) {
+      alert("Erro ao promover membro.");
+    }
+  };
 
-      {/* Podium Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center', marginBottom: '4rem' }}>
-        {top3.length > 0 ? (
-          <>
-            <div style={{ transform: 'scale(1.1)', zIndex: 10 }}>
-              <PlayerCard 
-                name={top3[0].name}
-                overall={top3[0].overall || 50} 
-                position={top3[0].position || "ATA"}
-                photoURL={top3[0].photoURL}
-                attributes={top3[0].attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
-                size="md"
-                playStyle={top3[0].playStyle as PlayerStyle}
-                playStyles={top3[0].playStyles as PlayStyle[]}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', width: '100%', padding: '15px', justifyContent: 'center' }}>
-              {top3.slice(1).map((player, i) => (
-                <PlayerCard 
-                  key={player.id}
-                  name={player.name}
-                  overall={player.overall || 50}
-                  position={player.position || "MEI"}
-                  photoURL={player.photoURL}
-                  attributes={player.attributes || { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 }}
-                  size="sm"
-                  playStyle={player.playStyle as PlayerStyle}
-                  playStyles={player.playStyles as PlayStyle[]}
-                />
-              ))}
-            </div>
-          </>
-        ) : (
-          <p style={{ color: 'var(--secondary)', fontSize: '14px' }}>Nenhum jogador ranqueado ainda.</p>
-        )}
-      </div>
-
-      {/* List */}
-      <div className="glass" style={{ borderRadius: '28px', overflow: 'hidden', marginBottom: '3rem' }}>
-        {others.map((player, i) => (
-          <div key={player.id} style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-            padding: '20px',
-            borderBottom: i === others.length - 1 ? 'none' : '1px solid var(--border)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '900', color: 'var(--secondary)', width: '25px' }}>{i + 4}</span>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                {player.photoURL ? (
-                  <img src={player.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User size={22} color="var(--secondary)" />
-                )}
-              </div>
-              <Link href={`/perfil/${player.id}`} style={{ fontWeight: '700', fontSize: '15px', color: 'white', textDecoration: 'none' }}>{player.name}</Link>
-            </div>
-            
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '18px', fontWeight: '900', color: tab === 'performance' ? 'var(--primary)' : 'white' }}>
-                {tab === 'performance' ? (player.overall || 50) : (player.totalGames || 0)}
-              </p>
-              <p style={{ fontSize: '10px', color: 'var(--secondary)', textTransform: 'uppercase', fontWeight: '800' }}>
-                {tab === 'performance' ? 'OVR' : 'Jogos'}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Highlights / Special Awards */}
-      <h3 style={{ margin: '0 0 1.5rem', fontWeight: '800', fontSize: '1.3rem' }}>Conquistas</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem', marginBottom: '2rem' }}>
-        <div className="glass" style={{ padding: '1.2rem', borderRadius: '20px', borderLeft: '4px solid var(--primary)', background: 'rgba(16, 185, 129, 0.05)' }}>
-          <Medal size={22} color="var(--primary)" style={{ marginBottom: '10px' }} />
-          <p style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '800' }}>DESTAQUE DA RODADA</p>
-          <p style={{ fontSize: '15px', fontWeight: '800' }}>{highlightPlayer ? highlightPlayer.name : '---'}</p>
-        </div>
-        <div className="glass" style={{ padding: '1.2rem', borderRadius: '20px', borderLeft: '4px solid var(--warning)', background: 'rgba(245, 158, 11, 0.05)' }}>
-          <TrendingUp size={22} color="var(--warning)" style={{ marginBottom: '10px' }} />
-          <p style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '800' }}>MAIS REGULAR</p>
-          <p style={{ fontSize: '15px', fontWeight: '800' }}>{mostRegularPlayer ? mostRegularPlayer.name : '---'}</p>
-        </div>
-      </div>
-
-      <RatingModal 
-        show={showRatingModal}
-        player={selectedPlayer}
-        onClose={() => setShowRatingModal(false)}
-        onSave={handleDetailedVote}
-      />
+  if (loading) return (
+    <div style={{ display: 'flex', height: '80vh', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '4px solid var(--surface)', borderTopColor: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
     </div>
   );
-}
 
-function RatingModal({ show, player, onClose, onSave }: any) {
-  const [ratings, setRatings] = useState<any>({ stat1: 5, stat2: 5, stat3: 5, stat4: 5, stat5: 5, stat6: 5 });
-  if (!show || !player) return null;
+  if (selectedGroup) {
+    const isAdmin = selectedGroup.createdBy === user?.uid || selectedGroup.members.find((m: any) => m.uid === user?.uid)?.role === 'admin';
+    const mensalistas = selectedGroup.members.filter((m: any) => m.type === 'mensalista');
+    const avulsos = selectedGroup.members.filter((m: any) => m.type === 'avulso');
 
-  const isGK = player.position === 'GOL';
-
-  const categories = isGK ? [
-    { key: 'stat1', label: 'Reflexos', icon: '🧤' },
-    { key: 'stat2', label: 'Elasticidade', icon: '🤸‍♂️' },
-    { key: 'stat3', label: 'Reposição / Saída', icon: '⚽' },
-    { key: 'stat4', label: 'Posicionamento', icon: '📍' },
-  ] : [
-    { key: 'stat1', label: 'Ataque / Finalização', icon: '🎯' },
-    { key: 'stat2', label: 'Defesa / Marcação', icon: '🛡️' },
-    { key: 'stat3', label: 'Passe / Visão', icon: '👟' },
-    { key: 'stat4', label: 'Físico / Raça', icon: '💪' },
-    { key: 'stat5', label: 'Velocidade', icon: '⚡' },
-    { key: 'stat6', label: 'Drible', icon: '🪄' },
-  ];
-
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(10px)' }}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '100%', maxWidth: '400px', borderRadius: '32px', padding: '2rem', border: '1px solid var(--border)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary-gradient)', margin: '0 auto 12px', overflow: 'hidden', border: '3px solid var(--primary)' }}>
-            <img src={player.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    return (
+      <div className="fade-in" style={{ paddingBottom: '100px' }}>
+        <header style={{ marginBottom: '2rem', paddingTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button onClick={() => setSelectedGroup(null)} style={{ padding: '10px', background: 'var(--surface)', borderRadius: '12px', color: 'white' }}>
+            <ArrowLeft size={20} />
+          </button>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: '900' }}>{selectedGroup.name}</h1>
+            <p style={{ color: 'var(--secondary)', fontSize: '13px' }}>{selectedGroup.members.length} membros</p>
           </div>
-          <h3 style={{ fontSize: '1.4rem', fontWeight: '900' }}>Avaliar {player.name.split(' ')[0]}</h3>
-          <p style={{ color: 'var(--secondary)', fontSize: '14px' }}>Como foi o desempenho técnico hoje?</p>
-        </div>
+          {isAdmin && (
+            <button style={{ padding: '10px', color: 'var(--secondary)' }}>
+              <Settings size={20} />
+            </button>
+          )}
+        </header>
 
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '16px', 
-          marginBottom: '2rem',
-          maxHeight: '320px',
-          overflowY: 'auto',
-          paddingRight: '8px'
-        }} className="custom-scroll">
-          {categories.map(cat => (
-            <div key={cat.key}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: '700' }}>{cat.icon} {cat.label}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="10" 
-                  step="1"
-                  value={ratings[cat.key]} 
-                  onChange={(e) => setRatings({ ...ratings, [cat.key]: parseInt(e.target.value) })}
-                  style={{ 
-                    flex: 1,
-                    accentColor: 'var(--primary)',
-                    height: '6px',
-                    borderRadius: '5px',
-                    cursor: 'pointer'
-                  }}
-                />
-                <div style={{ 
-                  width: '38px', 
-                  height: '38px', 
-                  borderRadius: '10px', 
-                  background: 'rgba(255,255,255,0.05)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  border: '1px solid var(--border)',
-                  fontSize: '16px',
-                  fontWeight: '900',
-                  color: ratings[cat.key] >= 8 ? 'var(--primary)' : ratings[cat.key] <= 3 ? '#ef4444' : 'white'
-                }}>
-                  {ratings[cat.key]}
-                </div>
-              </div>
-            </div>
+        {/* Group Tabs */}
+        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface)', padding: '6px', borderRadius: '18px', marginBottom: '2rem' }}>
+          {[
+            { id: 'members', label: 'Membros', icon: Users },
+            { id: 'ranking', label: 'Ranking', icon: Trophy },
+            { id: 'matches', label: 'Partidas', icon: Calendar },
+            { id: 'lances', label: 'Lances', icon: Camera }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              style={{
+                flex: 1, padding: '12px', borderRadius: '14px',
+                background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
+                color: activeTab === tab.id ? 'black' : 'var(--secondary)',
+                fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+              }}
+            >
+              <tab.icon size={16} /> {tab.label}
+            </button>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '16px', borderRadius: '16px', background: 'transparent', color: 'var(--secondary)', fontWeight: '700' }}>CANCELAR</button>
-          <button onClick={() => onSave(ratings)} style={{ flex: 2, padding: '16px', borderRadius: '16px', background: 'var(--primary-gradient)', color: 'black', fontWeight: '900', boxShadow: '0 5px 15px var(--primary-glow)' }}>ENVIAR NOTAS</button>
+        {activeTab === 'members' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '800' }}>Mensalistas ({mensalistas.length})</h3>
+              {isAdmin && (
+                <button onClick={() => setShowInviteModal(true)} style={{ color: 'var(--primary)', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <UserPlus size={16} /> ADICIONAR
+                </button>
+              )}
+            </div>
+            
+            <div className="glass" style={{ borderRadius: '24px', overflow: 'hidden', marginBottom: '2rem' }}>
+              {mensalistas.map((m: any) => (
+                <div key={m.uid} style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--primary)' }}>
+                    <img src={m.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: '700', fontSize: '14px' }}>{m.name}</p>
+                    {m.role === 'admin' && <span style={{ fontSize: '9px', color: 'var(--primary)', fontWeight: '900' }}>ORGANIZADOR</span>}
+                  </div>
+                  {isAdmin && m.uid !== user?.uid && (
+                    <button onClick={() => handleRemoveMember(m.uid)} style={{ color: 'var(--error)', padding: '8px' }}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', marginTop: '1rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--secondary)' }}>Avulsos / Convidados ({avulsos.length})</h3>
+              {isAdmin && (
+                <button onClick={() => setShowInviteModal(true)} style={{ color: 'var(--primary)', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <UserPlus size={16} /> ADICIONAR
+                </button>
+              )}
+            </div>
+            <div className="glass" style={{ borderRadius: '24px', overflow: 'hidden' }}>
+              {avulsos.length === 0 ? (
+                <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--secondary)', fontSize: '13px' }}>Nenhum convidado avulso.</p>
+              ) : avulsos.map((m: any) => (
+                <div key={m.uid} style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', border: '1px solid var(--secondary)' }}>
+                    <img src={m.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: '700', fontSize: '14px' }}>{m.name}</p>
+                    <button onClick={() => handlePromoteToMensalista(m.uid)} style={{ fontSize: '10px', color: 'var(--primary)', fontWeight: '700' }}>Tornar Mensalista</button>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => handleRemoveMember(m.uid)} style={{ color: 'var(--error)', padding: '8px' }}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'ranking' && (
+          <div className="fade-in">
+             <p style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--secondary)' }}>Ranking do grupo será gerado após as partidas.</p>
+          </div>
+        )}
+
+        {activeTab === 'matches' && (
+          <div className="fade-in">
+             {groupMatches.length === 0 ? (
+               <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                  <Calendar size={48} color="var(--secondary)" style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                  <p style={{ color: 'var(--secondary)', fontWeight: '600' }}>Nenhuma partida agendada para este grupo.</p>
+                  {isAdmin && (
+                    <button onClick={() => window.location.href = '/admin/nova-partida'} style={{ marginTop: '1.5rem', background: 'var(--primary)', color: 'black', padding: '12px 24px', borderRadius: '12px', fontWeight: '900' }}>MARCAR PELADA</button>
+                  )}
+               </div>
+             ) : (
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                 {groupMatches.map(match => (
+                   <div key={match.id} className="glass" style={{ padding: '1rem', borderRadius: '20px', border: '1px solid var(--border)' }}>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <div>
+                         <p style={{ fontSize: '14px', fontWeight: '800' }}>{match.location}</p>
+                         <p style={{ fontSize: '12px', color: 'var(--secondary)' }}>{match.date} às {match.time}</p>
+                       </div>
+                       <Link href={`/?matchId=${match.id}`} style={{ background: 'var(--primary)', color: 'black', padding: '8px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: '900', textDecoration: 'none' }}>
+                         VER PARTIDA
+                       </Link>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+        )}
+
+        {activeTab === 'lances' && (
+          <div className="fade-in">
+             <LancesFeed groupId={selectedGroup.id} />
+          </div>
+        )}
+
+        {/* Invite Member Modal */}
+        {showInviteModal && (
+          <div className="modal-backdrop">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '100%', maxWidth: '400px', borderRadius: '24px', padding: '2rem', border: '1px solid var(--border)' }}>
+              <h3 style={{ marginBottom: '1.5rem', fontWeight: '800', fontSize: '1.2rem', textAlign: 'center' }}>Adicionar ao Grupo</h3>
+              
+              <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Buscar nome ou username..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchUsers(e.target.value)}
+                  style={{ width: '100%', padding: '16px', borderRadius: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+                {searchResults.map(u => (
+                  <div key={u.uid} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden' }}>
+                      <img src={u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: '14px', fontWeight: '800' }}>{u.name}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--primary)' }}>@{u.username}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button onClick={() => handleAddMember(u, 'mensalista')} style={{ background: 'var(--primary)', color: 'black', padding: '6px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '900' }}>MEN</button>
+                      <button onClick={() => handleAddMember(u, 'avulso')} style={{ background: 'var(--surface)', color: 'white', padding: '6px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '900', border: '1px solid var(--border)' }}>AVU</button>
+                    </div>
+                  </div>
+                ))}
+
+                {searchQuery.trim().length >= 2 && (
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed var(--border)', textAlign: 'center', marginTop: '8px' }}>
+                    <p style={{ fontSize: '12px', color: 'var(--secondary)', marginBottom: '10px' }}>Não encontrou o jogador?</p>
+                    <button 
+                      onClick={() => handleAddMember({ uid: 'guest_' + Date.now().toString(), name: searchQuery.trim(), photoURL: '', username: 'convidado' }, 'avulso')}
+                      style={{ background: 'var(--surface)', color: 'white', padding: '12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', width: '100%', border: '1px solid var(--border)' }}
+                    >
+                      CRIAR "{searchQuery.trim().toUpperCase()}" COMO AVULSO
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button onClick={() => setShowInviteModal(false)} style={{ width: '100%', marginTop: '1.5rem', padding: '14px', borderRadius: '14px', color: 'var(--secondary)', fontWeight: '700' }}>Fechar</button>
+            </motion.div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade-in" style={{ paddingBottom: '100px' }}>
+      <header style={{ marginBottom: '2.5rem', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: '900' }}>Meus Grupos</h1>
+          <p style={{ color: 'var(--secondary)' }}>Sua comunidade do futebol</p>
         </div>
-      </motion.div>
+        <button 
+          onClick={() => setShowCreateModal(true)}
+          style={{ background: 'var(--primary)', color: 'black', width: '45px', height: '45px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px var(--primary-glow)' }}
+        >
+          <Plus size={24} />
+        </button>
+      </header>
+
+      {groups.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <Shield size={64} color="var(--surface)" style={{ marginBottom: '1.5rem' }} />
+          <h2 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem' }}>Nenhum grupo ainda</h2>
+          <p style={{ color: 'var(--secondary)', fontSize: '14px', marginBottom: '2rem' }}>Crie um grupo para gerenciar seus mensalistas, avulsos e partidas em um só lugar.</p>
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            style={{ background: 'var(--primary-gradient)', color: 'black', padding: '16px 32px', borderRadius: '16px', fontWeight: '900', fontSize: '1rem' }}
+          >
+            CRIAR MEU PRIMEIRO GRUPO
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {groups.map(group => (
+            <motion.div
+              key={group.id}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSelectedGroup(group)}
+              className="glass"
+              style={{ padding: '1.5rem', borderRadius: '24px', cursor: 'pointer', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ width: '50px', height: '50px', borderRadius: '18px', background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Shield size={24} color="black" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '800' }}>{group.name}</h3>
+                    <p style={{ fontSize: '12px', color: 'var(--secondary)', fontWeight: '600' }}>{group.members.length} Jogadores</p>
+                  </div>
+                </div>
+                <ChevronRight size={24} color="var(--border)" />
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateModal && (
+        <div className="modal-backdrop">
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }} 
+            animate={{ y: 0, opacity: 1 }}
+            style={{ background: 'var(--surface)', width: '100%', maxWidth: '400px', borderRadius: '32px', padding: '2rem', border: '1px solid var(--border)' }}
+          >
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '900', marginBottom: '1.5rem', textAlign: 'center' }}>Novo Grupo</h2>
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '800', display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>Nome do Futebol / Grupo</label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Ex: Futebol de Quarta"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                style={{ width: '100%', padding: '16px', borderRadius: '16px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', color: 'white', outline: 'none', fontSize: '1.1rem', fontWeight: '600' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setShowCreateModal(false)} style={{ flex: 1, padding: '16px', borderRadius: '16px', color: 'var(--secondary)', fontWeight: '700' }}>CANCELAR</button>
+              <button 
+                onClick={handleCreateGroup}
+                disabled={!newGroupName.trim()}
+                style={{ flex: 2, padding: '16px', borderRadius: '16px', background: 'var(--primary-gradient)', color: 'black', fontWeight: '900', opacity: newGroupName.trim() ? 1 : 0.5 }}
+              >CRIAR GRUPO</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

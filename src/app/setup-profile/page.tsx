@@ -3,10 +3,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
-import { User, Shield, Zap, Target, Activity, Send } from 'lucide-react';
+import { User, Shield, Zap, Target, Activity, Send, Globe, Lock } from 'lucide-react';
 
 const POSITIONS = ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'PON', 'CA'];
 
@@ -18,6 +18,7 @@ export default function SetupProfilePage() {
   const [position, setPosition] = useState<PlayerPosition>('MEI');
   const [firstName, setFirstName] = useState((profile as any)?.firstName || '');
   const [lastName, setLastName] = useState((profile as any)?.lastName || '');
+  const [secondaryPosition, setSecondaryPosition] = useState<PlayerPosition | 'NENHUMA'>('NENHUMA');
   const [personalData, setPersonalData] = useState({
     birthDate: '',
     altura: '',
@@ -25,6 +26,25 @@ export default function SetupProfilePage() {
     peso: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [profileVisibility, setProfileVisibility] = useState<'publico' | 'privado'>('publico');
+
+  // Sync state with profile data when it loads
+  React.useEffect(() => {
+    if (profile) {
+      if (profile.firstName) setFirstName(profile.firstName);
+      if (profile.lastName) setLastName(profile.lastName);
+      if (profile.position) setPosition(profile.position);
+      if (profile.secondaryPosition) setSecondaryPosition(profile.secondaryPosition);
+      if (profile.profileVisibility) setProfileVisibility(profile.profileVisibility);
+      
+      setPersonalData({
+        birthDate: profile.birthDate || '',
+        altura: String(profile.altura || ''),
+        chuteira: String(profile.chuteira || ''),
+        peso: String(profile.peso || '')
+      });
+    }
+  }, [profile]);
 
   const getInitialAttributes = (pos: PlayerPosition) => {
     const base = { velocidade: 50, finalizacao: 50, passe: 50, drible: 50, defesa: 50, fisico: 50 };
@@ -39,33 +59,56 @@ export default function SetupProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    console.log("Iniciando handleSave...");
+    if (!user) {
+      alert("Erro: Usuário não autenticado. Por favor, faça login novamente.");
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const fullName = `${firstName} ${lastName}`.trim();
-      const updatedData = {
+      console.log("Preparando dados do perfil...");
+      const fName = String(firstName || "").trim();
+      const lName = String(lastName || "").trim();
+      const fullName = `${fName} ${lName}`.trim() || user.displayName || "Jogador";
+      
+      const updatedData: any = {
+        uid: user.uid,
         name: fullName,
-        firstName,
-        lastName,
-        position,
-        attributes: getInitialAttributes(position),
+        firstName: fName,
+        lastName: lName,
+        position: position || 'MEI',
+        attributes: getInitialAttributes(position || 'MEI'),
         overall: 50,
         profileSetup: true,
-        birthDate: personalData.birthDate,
-        altura: parseInt(personalData.altura) || 0,
-        chuteira: parseInt(personalData.chuteira) || 0,
-        peso: parseInt(personalData.peso) || 0
+        birthDate: personalData.birthDate || '',
+        altura: Number(personalData.altura) || 0,
+        chuteira: Number(personalData.chuteira) || 0,
+        peso: Number(personalData.peso) || 0,
+        profileVisibility: profileVisibility || 'publico',
+        hasInitialRating: false,
+        updatedAt: new Date().toISOString()
       };
 
-      await updateDoc(doc(db, 'users', user.uid), updatedData);
+      if (secondaryPosition && secondaryPosition !== 'NENHUMA') {
+        updatedData.secondaryPosition = secondaryPosition;
+      }
+
+      console.log("Enviando para o Firestore:", updatedData);
+      const userRef = doc(db, 'users', user.uid);
+      
+      await setDoc(userRef, updatedData, { merge: true });
+      console.log("Firestore atualizado com sucesso!");
       
       if (profile) {
         setProfile({ ...profile, ...updatedData });
       }
 
+      alert("Configurações salvas!");
       router.push('/');
-    } catch (error) {
-      console.error("Error saving profile:", error);
+    } catch (error: any) {
+      console.error("ERRO AO SALVAR PERFIL:", error);
+      alert("Erro ao salvar: " + (error.message || "Erro desconhecido"));
     } finally {
       setIsSaving(false);
     }
@@ -73,9 +116,12 @@ export default function SetupProfilePage() {
 
   return (
     <div className="fade-in" style={{ padding: '20px', paddingBottom: '100px' }}>
-      <header style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)' }}>Cadastro de Atleta</h1>
-        <p style={{ color: 'var(--secondary)' }}>Complete sua ficha técnica</p>
+      <header style={{ marginBottom: '2.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <img src="/logo.png" alt="LineUp" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+        <div>
+          <h1 style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)', lineHeight: 1 }}>Configurações</h1>
+          <p style={{ color: 'var(--secondary)', marginTop: '4px' }}>Gerencie sua conta e ficha técnica</p>
+        </div>
       </header>
 
       {/* Personal Info */}
@@ -169,12 +215,54 @@ export default function SetupProfilePage() {
         </div>
       </section>
 
+      <section className="glass" style={{ padding: '20px', borderRadius: '24px', marginBottom: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Target size={20} color="var(--secondary)" /> Posição Secundária (Opcional)
+        </h3>
+        <p style={{ fontSize: '11px', color: 'var(--secondary)', marginBottom: '1rem' }}>
+          Usada para balancear os times no sorteio se necessário.
+        </p>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px' }}>
+          <button
+            onClick={() => setSecondaryPosition('NENHUMA')}
+            style={{
+              flex: '0 0 auto',
+              padding: '10px 20px',
+              borderRadius: '12px',
+              background: secondaryPosition === 'NENHUMA' ? 'var(--secondary)' : 'var(--surface)',
+              color: secondaryPosition === 'NENHUMA' ? 'black' : 'var(--secondary)',
+              fontWeight: '700',
+              border: '1px solid var(--border)'
+            }}
+          >
+            NENHUMA
+          </button>
+          {POSITIONS.filter(p => p !== position).map(pos => (
+            <button
+              key={pos}
+              onClick={() => setSecondaryPosition(pos as PlayerPosition)}
+              style={{
+                flex: '0 0 auto',
+                padding: '10px 20px',
+                borderRadius: '12px',
+                background: secondaryPosition === pos ? 'var(--primary)' : 'var(--surface)',
+                color: secondaryPosition === pos ? 'black' : 'var(--secondary)',
+                fontWeight: '700',
+                border: '1px solid var(--border)'
+              }}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="glass" style={{ padding: '20px', borderRadius: '24px', marginBottom: '2rem', opacity: 0.8 }}>
         <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Activity size={20} color="var(--primary)" /> Atributos Iniciais
+          <Activity size={20} color="var(--primary)" /> Habilidades
         </h3>
         <p style={{ fontSize: '12px', color: 'var(--secondary)', marginBottom: '1rem' }}>
-          Habilidades fixas em 50. Evolua jogando!
+          Sua evolução técnica atual.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {Object.keys(getInitialAttributes(position)).map(attr => (
@@ -183,6 +271,44 @@ export default function SetupProfilePage() {
               <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>50</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Privacy Section */}
+      <section className="glass" style={{ padding: '20px', borderRadius: '24px', marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {profileVisibility === 'publico' ? <Globe size={20} color="var(--primary)" /> : <Lock size={20} color="var(--warning)" />} Privacidade
+        </h3>
+        <p style={{ fontSize: '12px', color: 'var(--secondary)', marginBottom: '1rem', lineHeight: '1.5' }}>
+          Escolha quem pode ver suas estatísticas, lances e atributos. Você pode mudar isso depois.
+        </p>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setProfileVisibility('publico')}
+            style={{
+              flex: 1, padding: '14px', borderRadius: '14px',
+              background: profileVisibility === 'publico' ? 'rgba(34, 197, 94, 0.15)' : 'var(--surface)',
+              border: profileVisibility === 'publico' ? '2px solid var(--primary)' : '1px solid var(--border)',
+              color: profileVisibility === 'publico' ? 'var(--primary)' : 'var(--secondary)',
+              fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+            }}
+          >
+            <Globe size={14} /> PÚBLICO
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileVisibility('privado')}
+            style={{
+              flex: 1, padding: '14px', borderRadius: '14px',
+              background: profileVisibility === 'privado' ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface)',
+              border: profileVisibility === 'privado' ? '2px solid var(--warning)' : '1px solid var(--border)',
+              color: profileVisibility === 'privado' ? 'var(--warning)' : 'var(--secondary)',
+              fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+            }}
+          >
+            <Lock size={14} /> PRIVADO
+          </button>
         </div>
       </section>
 
@@ -204,7 +330,7 @@ export default function SetupProfilePage() {
           boxShadow: '0 8px 25px var(--primary-glow)'
         }}
       >
-        {isSaving ? 'Salvando...' : 'FINALIZAR CADASTRO'}
+        {isSaving ? 'Salvando...' : 'SALVAR ALTERAÇÕES'}
         <Send size={20} />
       </button>
     </div>

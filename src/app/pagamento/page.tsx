@@ -1,25 +1,70 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Copy, QrCode, CheckCircle, Clock, ExternalLink } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Copy, CheckCircle, Clock } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { generatePixPayload } from '@/lib/pix';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function PagamentoPage() {
   const { profile } = useAuth();
   const [hasPaid, setHasPaid] = useState(false);
-  const pixKey = "rodriguesmiguel05@gmail.com";
-
-  const copyPixKey = () => {
-    navigator.clipboard.writeText(pixKey);
-    alert('Chave PIX Copiada!');
-  };
+  const [pixConfig, setPixConfig] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
 
   const [confirmedPlayers, setConfirmedPlayers] = useState<any[]>([]);
   const [matchInfo, setMatchInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Fetch PIX Config
+  React.useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'pix'), (snap) => {
+      if (snap.exists()) setPixConfig(snap.data());
+    });
+    return () => unsub();
+  }, []);
+
+  const [payingFor, setPayingFor] = useState<string[]>([]);
+
+  const individualValue = matchInfo && confirmedPlayers.length > 0 
+    ? parseFloat(matchInfo.totalCost || '0') / confirmedPlayers.length 
+    : 0;
+
+  const totalToPay = individualValue * (1 + payingFor.length);
+
+  const pixPayload = pixConfig && totalToPay > 0 ? generatePixPayload({
+    key: pixConfig.key,
+    name: pixConfig.name,
+    city: pixConfig.city,
+    amount: totalToPay,
+    transactionId: "***"
+  }) : '';
+
+  const copyPixKey = () => {
+    if (!pixPayload) return;
+    navigator.clipboard.writeText(pixPayload);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    alert('Código PIX Copiado!');
+  };
+
+  const handleNotifyPayment = async () => {
+    if (!profile || !matchInfo) return;
+    const updatedParticipants = matchInfo.participants.map((p: any) => {
+      if (p.uid === profile.uid) return { ...p, paymentStatus: 'waiting', payingFor };
+      if (payingFor.includes(p.uid)) return { ...p, paymentStatus: 'waiting', sponsoredBy: profile.uid };
+      return p;
+    });
+    try {
+      await updateDoc(doc(db, 'matches', matchInfo.id), { participants: updatedParticipants });
+      setHasPaid(true);
+      setPayingFor([]);
+    } catch (e) {
+      alert("Erro ao notificar pagamento.");
+    }
+  };
 
   // Fetch confirmed players and their payment status
   React.useEffect(() => {
@@ -34,25 +79,23 @@ export default function PagamentoPage() {
         if (!snapshot.empty) {
           // Find the scheduled match like Home does
           const scheduledMatch = snapshot.docs.find(doc => doc.data().status === 'scheduled');
-          if (scheduledMatch) {
-            const matchData: any = { id: scheduledMatch.id, ...scheduledMatch.data() };
-            setMatchInfo(matchData);
-            const participants = matchData.participants || [];
-            setConfirmedPlayers(participants);
-          } else {
-            // Fallback to latest if no scheduled
-            const matchData: any = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-            setMatchInfo(matchData);
-            setConfirmedPlayers(matchData.participants || []);
-          }
+          const matchDoc = scheduledMatch || snapshot.docs[0];
+          const matchData: any = { id: matchDoc.id, ...matchDoc.data() };
+          
+          setMatchInfo(matchData);
+          setConfirmedPlayers(matchData.participants || []);
+          
+          const myStatus = matchData.participants?.find((p: any) => p.uid === profile?.uid)?.paymentStatus;
+          if (myStatus === 'waiting' || myStatus === 'paid') setHasPaid(true);
+          
           setLoading(false);
         }
       });
     };
     fetchParticipants();
-  }, []);
+  }, [profile]);
 
-  const paidCount = confirmedPlayers.filter(p => p.status === 'paid').length;
+  const paidCount = confirmedPlayers.filter(p => p.paymentStatus === 'paid').length;
   const paymentPercentage = confirmedPlayers.length > 0 
     ? Math.round((paidCount / confirmedPlayers.length) * 100) 
     : 0;
@@ -67,9 +110,9 @@ export default function PagamentoPage() {
       {/* PIX Card */}
       <div className="glass" style={{ padding: '1.5rem', borderRadius: '24px', textAlign: 'center', marginBottom: '2rem' }}>
         <div style={{ marginBottom: '1.5rem', marginTop: '1rem' }}>
-          <p style={{ color: 'var(--secondary)', fontSize: '13px', marginBottom: '4px' }}>VALOR DA PELADA</p>
+          <p style={{ color: 'var(--secondary)', fontSize: '13px', marginBottom: '4px' }}>VALOR TOTAL A PAGAR</p>
           <p style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--primary)' }}>
-            R$ {matchInfo?.id ? (matchInfo.isClosed ? (matchInfo.price || '0,00') : (confirmedPlayers.length > 0 ? (parseFloat(matchInfo.totalCost || '0') / confirmedPlayers.length).toFixed(2) : parseFloat(matchInfo.totalCost || '0').toFixed(2))) : '0,00'}
+            R$ {totalToPay.toFixed(2)}
           </p>
           {!matchInfo?.isClosed && (
             <p style={{ 
@@ -87,60 +130,97 @@ export default function PagamentoPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button 
-            onClick={copyPixKey}
-            style={{
-              width: '100%',
-              padding: '16px',
-              borderRadius: '16px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: 'white',
-              fontWeight: '700',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              fontSize: '15px'
-            }}
-          >
-            <Copy size={20} /> Copiar Chave PIX
-          </button>
-          
-          {!hasPaid ? (
-            <button 
-              onClick={() => setHasPaid(true)}
-              style={{
-                width: '100%',
-                padding: '18px',
-                borderRadius: '16px',
-                background: 'var(--primary)',
-                color: 'black',
-                fontWeight: '900',
-                fontSize: '16px',
-                boxShadow: '0 8px 25px var(--primary-glow)'
-              }}
-            >
-              Já paguei!
-            </button>
-          ) : (
-            <div style={{ 
-              padding: '18px', 
-              borderRadius: '16px', 
-              background: 'rgba(16, 185, 129, 0.1)', 
-              border: '1px solid var(--primary)',
-              color: 'var(--primary)',
-              fontWeight: '800',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px'
-            }}>
-              <CheckCircle size={22} /> Aguardando Confirmação
+        {!hasPaid && (
+          <div style={{ width: '100%', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '16px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '10px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.1em' }}>PAGAR PARA MAIS ALGUÉM?</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+              {confirmedPlayers.filter((p: any) => p.uid !== profile?.uid && p.paymentStatus !== 'paid' && p.paymentStatus !== 'waiting').map((p: any) => {
+                const isSelected = payingFor.includes(p.uid);
+                return (
+                  <button
+                    key={p.uid}
+                    onClick={() => {
+                      if (isSelected) setPayingFor(payingFor.filter(id => id !== p.uid));
+                      else setPayingFor([...payingFor, p.uid]);
+                    }}
+                    style={{
+                      padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: '800',
+                      background: isSelected ? 'var(--primary)' : 'var(--surface)',
+                      color: isSelected ? 'black' : 'white',
+                      border: '1px solid ' + (isSelected ? 'var(--primary)' : 'var(--border)'),
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    + {p.name}
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {pixPayload ? (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={copyPixKey}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: '16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'white',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  fontSize: '15px'
+                }}
+              >
+                <Copy size={20} /> {copied ? 'CÓDIGO COPIADO!' : 'Copiar Chave PIX'}
+              </button>
+              
+              {!hasPaid ? (
+                <button 
+                  onClick={handleNotifyPayment}
+                  style={{
+                    width: '100%',
+                    padding: '18px',
+                    borderRadius: '16px',
+                    background: 'var(--primary)',
+                    color: 'black',
+                    fontWeight: '900',
+                    fontSize: '16px',
+                    boxShadow: '0 8px 25px var(--primary-glow)'
+                  }}
+                >
+                  Já paguei!
+                </button>
+              ) : (
+                <div style={{ 
+                  padding: '18px', 
+                  borderRadius: '16px', 
+                  background: 'rgba(16, 185, 129, 0.1)', 
+                  border: '1px solid var(--primary)',
+                  color: 'var(--primary)',
+                  fontWeight: '800',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px'
+                }}>
+                  <CheckCircle size={22} /> {confirmedPlayers.find(p => p.uid === profile?.uid)?.paymentStatus === 'paid' ? 'Pagamento Confirmado' : 'Aguardando Confirmação'}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <p style={{ color: 'var(--secondary)', fontSize: '12px', padding: '1rem' }}>
+            Aguardando configuração de pagamento pelo administrador...
+          </p>
+        )}
       </div>
 
       {/* Payment List */}
@@ -172,13 +252,13 @@ export default function PagamentoPage() {
                   </span>
                 </div>
                 
-                {player.status === 'paid' ? (
+                {player.paymentStatus === 'paid' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', fontSize: '12px', fontWeight: '800' }}>
                     <CheckCircle size={14} /> PAGO
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--secondary)', fontSize: '12px', fontWeight: '800' }}>
-                     PENDENTE
+                     {player.paymentStatus === 'waiting' ? 'AGUARDANDO' : 'PENDENTE'}
                   </div>
                 )}
               </div>

@@ -15,11 +15,10 @@ interface PlayerToRate {
   rating?: number;
 }
 
-const MOCK_PLAYERS_TO_RATE: PlayerToRate[] = []; // Clear for real use
-
 export default function AvaliacoesPage() {
   const { profile } = useAuth();
-  const [players, setPlayers] = useState(MOCK_PLAYERS_TO_RATE);
+  const [players, setPlayers] = useState<PlayerToRate[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerToRate | null>(null);
   const [currentRating, setCurrentRating] = useState(7);
   const [attributes, setAttributes] = useState({
@@ -30,6 +29,47 @@ export default function AvaliacoesPage() {
     fisico: 7,
     finalizacao: 7,
   });
+
+  // Fetch real participants from latest match
+  React.useEffect(() => {
+    const q = query(
+      collection(db, 'matches'),
+      orderBy('createdAt', 'desc'),
+      limit(20) // Get more to be able to filter mocks
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        
+        // Filter out mock matches
+        const realMatches = matches.filter(m => {
+          const loc = (m.location || '').toLowerCase();
+          return !loc.includes('fictícia') && !loc.includes('teste') && !loc.includes('mock');
+        });
+
+        const latestMatch = realMatches[0];
+        if (latestMatch) {
+          const participants = latestMatch.participants || [];
+          
+          // Map to PlayerToRate and filter out current user
+          const toRate = participants
+            .filter((p: any) => p.uid !== profile?.uid)
+            .map((p: any) => ({
+              id: p.uid,
+              name: p.name,
+              photoURL: p.photoURL,
+              rated: false
+            }));
+          
+          setPlayers(toRate);
+        }
+      }
+      setLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [profile]);
 
   const handleRate = async () => {
     if (!selectedPlayer) return;
@@ -88,7 +128,17 @@ export default function AvaliacoesPage() {
         <p style={{ color: 'var(--secondary)' }}>Dê nota aos seus companheiros de hoje</p>
       </header>
 
-      {/* Progress Bar */}
+      {loading ? (
+        <div style={{ display: 'flex', height: '50vh', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '4px solid var(--surface)', borderTopColor: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
+        </div>
+      ) : players.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--surface)', borderRadius: '24px', border: '1px solid var(--border)' }}>
+          <p style={{ color: 'var(--secondary)', fontSize: '14px' }}>Nenhuma partida recente para avaliar.</p>
+        </div>
+      ) : (
+        <>
+          {/* Progress Bar */}
       <div style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
           <span style={{ color: 'var(--secondary)' }}>Progresso</span>
@@ -140,6 +190,8 @@ export default function AvaliacoesPage() {
           </div>
         ))}
       </div>
+      </>
+      )}
 
       {/* Rating Modal (Simplified for Mobile) */}
       <AnimatePresence>

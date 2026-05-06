@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 interface UserAttributes {
@@ -51,6 +51,7 @@ interface UserProfile {
   username?: string;
   friends?: string[];
   friendRequests?: string[];
+  friendRequestsSent?: string[];
   // Evolution System (FIFA UT)
   recentRatings?: number[];
   isInform?: boolean;
@@ -60,6 +61,9 @@ interface UserProfile {
   autoPosition?: string;
   playStyles?: any[];
   informStreak?: number;
+  profileVisibility?: 'publico' | 'privado';
+  hasInitialRating?: boolean;
+  secondaryPosition?: PlayerPosition;
 }
 
 interface AuthContextType {
@@ -92,42 +96,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubProfile: any = null;
+
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      
       if (user) {
         const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        } else {
-          const newProfile: UserProfile = {
-            uid: user.uid,
-            name: user.displayName || 'Jogador',
-            email: user.email || '',
-            photoURL: user.photoURL || '',
-            overall: 50,
-            attributes: {
-              velocidade: 50, defesa: 50, passe: 50, drible: 50, fisico: 50, finalizacao: 50,
-            },
-            isAdmin: false,
-            totalGames: 0,
-            confirmedGames: 0,
-            position: 'MEI',
-            username: '',
-            friends: [],
-            friendRequests: [],
-          };
-          await setDoc(docRef, newProfile);
-          setProfile(newProfile);
-        }
+        
+        // Use onSnapshot for real-time profile updates
+        unsubProfile = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setProfile(docSnap.data() as UserProfile);
+            setLoading(false);
+          } else {
+            // Handle new user creation (one-time)
+            const createProfile = async () => {
+              const newProfile: UserProfile = {
+                uid: user.uid,
+                name: user.displayName || 'Jogador',
+                email: user.email || '',
+                photoURL: user.photoURL || '',
+                overall: 50,
+                attributes: {
+                  velocidade: 50, defesa: 50, passe: 50, drible: 50, fisico: 50, finalizacao: 50,
+                },
+                isAdmin: false,
+                totalGames: 0,
+                confirmedGames: 0,
+                position: 'MEI',
+                username: '',
+                friends: [],
+                friendRequests: [],
+                friendRequestsSent: [],
+                profileVisibility: 'publico',
+                hasInitialRating: false,
+              };
+              await setDoc(docRef, newProfile);
+            };
+            createProfile();
+          }
+        });
       } else {
         setProfile(null);
+        setLoading(false);
+        if (unsubProfile) unsubProfile();
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   return (
