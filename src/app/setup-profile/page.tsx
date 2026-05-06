@@ -31,18 +31,17 @@ export default function SetupProfilePage() {
   // Sync state with profile data when it loads
   React.useEffect(() => {
     if (profile) {
-      const p = profile as any;
-      if (p.firstName) setFirstName(p.firstName);
-      if (p.lastName) setLastName(p.lastName);
-      if (p.position) setPosition(p.position);
-      if (p.secondaryPosition) setSecondaryPosition(p.secondaryPosition);
-      if (p.profileVisibility) setProfileVisibility(p.profileVisibility);
+      if ((profile as any).firstName) setFirstName((profile as any).firstName);
+      if ((profile as any).lastName) setLastName((profile as any).lastName);
+      if (profile.position) setPosition(profile.position);
+      if (profile.secondaryPosition) setSecondaryPosition(profile.secondaryPosition);
+      if (profile.profileVisibility) setProfileVisibility(profile.profileVisibility);
       
       setPersonalData({
-        birthDate: p.birthDate || '',
-        altura: String(p.altura || ''),
-        chuteira: String(p.chuteira || ''),
-        peso: String(p.peso || '')
+        birthDate: profile.birthDate || '',
+        altura: String(profile.altura || ''),
+        chuteira: String(profile.chuteira || ''),
+        peso: String(profile.peso || '')
       });
     }
   }, [profile]);

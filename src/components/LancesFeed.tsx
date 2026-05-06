@@ -269,9 +269,6 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
 
       {!groupId && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {lances.length === 0 && (
-            <p style={{ textAlign: 'center', color: 'var(--secondary)', padding: '2rem' }}>Nenhum lance por aqui ainda.</p>
-          )}
           {lances.map((lance) => (
             <LanceCard 
               key={lance.id} 

@@ -335,22 +335,22 @@ export default function LiveMatchPage() {
     });
 
     const events = match.liveMatch?.events || [];
-    const allPlayers = [ ...activeTeams.flatMap((t: any) => t.players), ...(match.bench || []) ];
-    const finalParticipants = allPlayers.map((p: any) => {
+    const allPlayers = [ ...activeTeams.flatMap(t => t.players), ...(match.bench || []) ];
+    const finalParticipants = allPlayers.map(p => {
       const pGoals = events.filter((e: any) => e.type === 'goal' && e.playerId === p.uid).length;
       const pAssists = events.filter((e: any) => e.type === 'assist' && e.playerId === p.uid).length;
       return { ...p, goals: pGoals, assists: pAssists, rating: 6.0 + (pGoals * 1.5) + (pAssists * 1.0) };
     });
 
-    const mvp = [...finalParticipants].sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0))[0];
+    const mvp = [...finalParticipants].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
     await updateDoc(matchRef, { 
       status: 'finished', scoreA: score.teamA, scoreB: score.teamB, winner,
-      mvp: mvp?.uid || null, top3: finalParticipants.sort((a: any,b: any) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map((p: any) => p.uid),
+      mvp: mvp?.uid || null, top3: finalParticipants.sort((a,b) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map(p => p.uid),
       finalParticipants, 'liveMatch.isLive': false, 'liveMatch.isFinished': true, 'liveMatch.timer.running': false
     });
 
     const { increment } = await import('firebase/firestore');
-    await Promise.all(finalParticipants.map(async (p: any) => {
+    await Promise.all(finalParticipants.map(async (p) => {
       if (p.isGuest) return; // Skip guests for persistent updates
 
       try {

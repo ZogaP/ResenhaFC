@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Star, Send, CheckCircle, User, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, updateDoc, getDoc, query, collection, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 interface PlayerToRate {
@@ -38,12 +38,12 @@ export default function AvaliacoesPage() {
       limit(20) // Get more to be able to filter mocks
     );
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot: any) => {
       if (!snapshot.empty) {
-        const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        const matches = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() as any }));
         
         // Filter out mock matches
-        const realMatches = matches.filter(m => {
+        const realMatches = matches.filter((m: any) => {
           const loc = (m.location || '').toLowerCase();
           return !loc.includes('fictícia') && !loc.includes('teste') && !loc.includes('mock');
         });

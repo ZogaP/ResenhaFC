@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Target, Zap, Brain, Activity, User as UserIcon, Sparkles } from 'lucide-react';
-import { clsx } from 'clsx';
+import { Shield, Sparkles } from 'lucide-react';
 import { getCardType, getCardVisuals, getStyleMetadata, getPlayStyleMetadata, type CardVariant, type PlayerStyle, type PlayStyle } from '@/lib/evolution';
 
 interface PlayerCardProps {
@@ -113,9 +112,10 @@ export default function PlayerCard({ name, overall, position, attributes, photoU
             boxShadow: `0 5px 15px rgba(0,0,0,0.3), ${isSpecial ? `0 0 20px ${style.glow}` : 'none'}`,
             background: 'rgba(255,255,255,0.1)'
           }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photoURL}
-              alt={name}
+              alt={name || "Player photo"}
               referrerPolicy="no-referrer"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
@@ -181,7 +181,7 @@ export default function PlayerCard({ name, overall, position, attributes, photoU
           margin: `0 0 ${4 * scale}px 0`
         }}>{name}</h3>
         
-        {playStyle && (
+        {playStyle && getStyleMetadata(playStyle) && (
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
