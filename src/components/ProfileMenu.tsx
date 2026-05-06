@@ -25,7 +25,7 @@ export default function ProfileMenu({ show, onClose }: ProfileMenuProps) {
     if (show && profile?.friendRequests && profile.friendRequests.length > 0) {
       const fetchDetails = async () => {
         const details = await Promise.all(
-          profile.friendRequests.map(async (uid: string) => {
+          (profile.friendRequests || []).map(async (uid: string) => {
             const snap = await getDoc(doc(db, 'users', uid));
             return snap.exists() ? { uid, ...snap.data() } : null;
           })

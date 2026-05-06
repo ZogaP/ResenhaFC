@@ -269,6 +269,9 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
 
       {!groupId && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {lances.length === 0 && (
+            <p style={{ textAlign: 'center', color: 'var(--secondary)', padding: '2rem' }}>Nenhum lance por aqui ainda.</p>
+          )}
           {lances.map((lance) => (
             <LanceCard 
               key={lance.id} 
@@ -346,142 +349,7 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
         </div>
       )}
 
-      {/* Feed */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {lances.length === 0 && (
-          <p style={{ textAlign: 'center', color: 'var(--secondary)', padding: '2rem' }}>Nenhum lance por aqui ainda.</p>
-        )}
-        {lances.map((lance) => (
-          <motion.div 
-            key={lance.id} 
-            id={`lance-${lance.id}`}
-            className="glass" 
-            style={{ 
-              borderRadius: '24px', 
-              overflow: 'hidden', 
-              border: searchParams.get('id') === lance.id ? '2px solid var(--primary)' : '1px solid var(--border)' 
-            }}
-          >
-            {/* Author Header */}
-            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--surface)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {lance.authorPhoto ? (
-                    <img src={lance.authorPhoto} alt={lance.author} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <User size={16} color="var(--secondary)" />
-                  )}
-                </div>
-                <div>
-                  <Link href={`/perfil/${lance.uid}`} style={{ fontSize: '14px', fontWeight: '700', color: 'white', textDecoration: 'none' }}>{lance.author}</Link>
-                  <p style={{ fontSize: '10px', color: 'var(--secondary)' }}>
-                    {formatTime(lance.createdAt)}
-                  </p>
-                </div>
-              </div>
-              
-              { (profile?.uid === lance.uid || profile?.role === 'admin') && (
-                <button onClick={() => handleDelete(lance.id)} style={{ color: 'var(--error)', opacity: 0.6 }}>
-                  <Trash2 size={18} />
-                </button>
-              )}
-            </div>
 
-            {/* Media Content */}
-            <div style={{ 
-              width: '100%', 
-              position: 'relative',
-              paddingTop: lance.type === 'video' ? '56.25%' : '100%',
-              background: '#000', 
-              borderRadius: '20px',
-              overflow: 'hidden',
-              marginBottom: '16px',
-              border: '1px solid var(--border)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.6)'
-            }}>
-              {lance.type === 'video' ? (
-                <>
-                  <iframe 
-                    src={transformMediaLink(lance.url, true)} 
-                    style={{ 
-                      position: 'absolute', top: 0, left: 0,
-                      width: '100%', height: '100%', border: 'none',
-                      objectFit: 'contain'
-                    }} 
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    referrerPolicy="no-referrer"
-                  />
-                  <button 
-                    onClick={() => setFullscreenVideo(transformMediaLink(lance.url, true))}
-                    style={{
-                      position: 'absolute', top: '12px', right: '12px',
-                      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
-                      color: 'white', padding: '8px 12px', borderRadius: '10px',
-                      fontSize: '10px', fontWeight: '800', display: 'flex',
-                      alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)', zIndex: 10
-                    }}
-                  >
-                    <Maximize size={14} /> EXPANDIR
-                  </button>
-                </>
-              ) : (
-                <img 
-                  src={lance.url} 
-                  alt="Highlight" 
-                  referrerPolicy="no-referrer"
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} 
-                />
-              )}
-            </div>
-
-            {/* Interaction Footer */}
-            <div style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
-                <button 
-                  onClick={() => handleLike(lance.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'white' }}
-                >
-                  <Heart 
-                    size={22} 
-                    color={lance.likedBy?.includes(profile?.uid) ? "var(--primary)" : "white"} 
-                    fill={lance.likedBy?.includes(profile?.uid) ? "var(--primary)" : "none"} 
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: '600' }}>{lance.likes || 0}</span>
-                </button>
-                <button style={{ background: 'none', border: 'none', color: 'white' }}>
-                  <MessageCircle size={22} />
-                </button>
-              </div>
-              
-              <p style={{ fontSize: '14px', lineHeight: '1.4', marginBottom: '16px' }}>
-                <span style={{ fontWeight: '700', marginRight: '8px' }}>{lance.author}</span>
-                {lance.description}
-              </p>
-
-              {/* Comment Input */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Adicione um comentário..."
-                    onKeyDown={(e: any) => {
-                      if (e.key === 'Enter') {
-                        handleComment(lance.id, e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    style={{ 
-                      flex: 1, background: 'var(--surface)', 
-                      border: '1px solid var(--border)', borderRadius: '8px', 
-                      padding: '8px 12px', fontSize: '12px', color: 'white' 
-                    }} 
-                  />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
 
       {fullscreenVideo && (
         <VideoOverlay url={fullscreenVideo} onClose={() => setFullscreenVideo(null)} />

@@ -267,14 +267,14 @@ export default function LiveMatchPage() {
       const teamPlayers = currentTeams[targetTeamIndex].players;
       
       // Rule: Goalkeeper protection (only leave if there's a bench GK or manually)
-      const playingUids = teamPlayers.filter(p => {
+      const playingUids = teamPlayers.filter((p: any) => {
         const isGK = p.isGoalkeeper || p.position === 'GOL' || p.autoPosition === 'GOL';
         if (isGK) {
-          const hasBenchGK = currentBench.some(bp => bp.isGoalkeeper || bp.position === 'GOL' || bp.autoPosition === 'GOL');
+          const hasBenchGK = currentBench.some((bp: any) => bp.isGoalkeeper || bp.position === 'GOL' || bp.autoPosition === 'GOL');
           if (!hasBenchGK) return false; // Stay in game
         }
         return true;
-      }).map(p => p.uid);
+      }).map((p: any) => p.uid);
       
       const candidates = currentEntryOrder.filter((uid: string) => playingUids.includes(uid));
       if (!candidates.length) break;
@@ -327,7 +327,7 @@ export default function LiveMatchPage() {
     else if (match.tiebreakerWinner) winner = match.tiebreakerWinner;
 
     const activeTeams = [...match.teams];
-    activeIndices.forEach(idx => {
+    activeIndices.forEach((idx: number) => {
       activeTeams[idx].players = activeTeams[idx].players.map((p: any) => {
         const played = Math.max(0, currentTime - (p.lastEntryTime || 0));
         return { ...p, minutesPlayed: (p.minutesPlayed || 0) + played, lastEntryTime: null };
@@ -335,22 +335,22 @@ export default function LiveMatchPage() {
     });
 
     const events = match.liveMatch?.events || [];
-    const allPlayers = [ ...activeTeams.flatMap(t => t.players), ...(match.bench || []) ];
-    const finalParticipants = allPlayers.map(p => {
+    const allPlayers = [ ...activeTeams.flatMap((t: any) => t.players), ...(match.bench || []) ];
+    const finalParticipants = allPlayers.map((p: any) => {
       const pGoals = events.filter((e: any) => e.type === 'goal' && e.playerId === p.uid).length;
       const pAssists = events.filter((e: any) => e.type === 'assist' && e.playerId === p.uid).length;
       return { ...p, goals: pGoals, assists: pAssists, rating: 6.0 + (pGoals * 1.5) + (pAssists * 1.0) };
     });
 
-    const mvp = [...finalParticipants].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
+    const mvp = [...finalParticipants].sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0))[0];
     await updateDoc(matchRef, { 
       status: 'finished', scoreA: score.teamA, scoreB: score.teamB, winner,
-      mvp: mvp?.uid || null, top3: finalParticipants.sort((a,b) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map(p => p.uid),
+      mvp: mvp?.uid || null, top3: finalParticipants.sort((a: any,b: any) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map((p: any) => p.uid),
       finalParticipants, 'liveMatch.isLive': false, 'liveMatch.isFinished': true, 'liveMatch.timer.running': false
     });
 
     const { increment } = await import('firebase/firestore');
-    await Promise.all(finalParticipants.map(async (p) => {
+    await Promise.all(finalParticipants.map(async (p: any) => {
       if (p.isGuest) return; // Skip guests for persistent updates
 
       try {
