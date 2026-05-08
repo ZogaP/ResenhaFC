@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { doc, getDoc, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, Trophy, Star, Calendar, Ruler, Weight, Footprints, TrendingUp, TrendingDown, Minus, Info, Sparkles, UserPlus, CheckCircle, Lock, X } from 'lucide-react';
+import { ArrowLeft, Trophy, Star, Calendar, Ruler, Weight, Footprints, TrendingUp, TrendingDown, Minus, Info, Sparkles, UserPlus, CheckCircle, Lock, X, Trash2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transformMediaLink } from '@/lib/utils';
 import PlayerCard from '@/components/PlayerCard';
