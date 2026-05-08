@@ -28,6 +28,12 @@ export default function PerfilPage() {
   const [showMatchesModal, setShowMatchesModal] = useState(false);
   const [friendsList, setFriendsList] = useState<any[]>([]);
   const [matchesList, setMatchesList] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string, type: 'info' | 'success' | 'warning' } | null>(null);
+
+  const showToast = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleSendRequest = async () => {
     if (!user || isOwnProfile) return;
@@ -121,6 +127,37 @@ export default function PerfilPage() {
       return () => unsubscribe();
     }
   }, [showMatchesModal, uid]);
+
+  const handleDeleteMatch = async (matchId: string) => {
+    if (profile?.role !== 'admin') return;
+    if (!confirm("Tem certeza que deseja excluir esta partida permanentemente? Isso afetará o histórico de todos os participantes.")) return;
+    
+    try {
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'matches', matchId));
+      showToast("Partida excluída!", "success");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao excluir partida.");
+    }
+  };
+
+  const handleClearAllMatches = async () => {
+    if (profile?.role !== 'admin') return;
+    if (!confirm("⚠️ PERIGO: Isso excluirá TODAS as partidas do banco de dados para TODO MUNDO. Esta ação não pode ser desfeita. Continuar?")) return;
+    if (!confirm("CONFIRMAÇÃO FINAL: Você tem certeza absoluta?")) return;
+
+    try {
+      const { getDocs, collection, deleteDoc, doc } = await import('firebase/firestore');
+      const snap = await getDocs(collection(db, 'matches'));
+      const batch = snap.docs.map(d => deleteDoc(doc(db, 'matches', d.id)));
+      await Promise.all(batch);
+      showToast("Histórico global limpo!", "success");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao limpar histórico.");
+    }
+  };
 
   if (loading) {
     return (
@@ -646,7 +683,17 @@ export default function PerfilPage() {
             <button onClick={() => setShowMatchesModal(false)} style={{ padding: '10px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', marginRight: '1rem' }}>
               <ArrowLeft size={20} />
             </button>
-            <h3 style={{ fontWeight: '900', fontSize: '1.2rem', margin: 0 }}>Histórico de Partidas</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontWeight: '900', fontSize: '1.2rem' }}>Histórico de Partidas</h3>
+              {profile?.role === 'admin' && (
+                <button 
+                  onClick={handleClearAllMatches}
+                  style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '6px 12px', borderRadius: '10px', fontSize: '10px', fontWeight: '900', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                >
+                  LIMPAR TUDO (GLOBAL)
+                </button>
+              )}
+            </div>
           </header>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
@@ -717,6 +764,14 @@ export default function PerfilPage() {
                                 <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(m.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
                               </div>
                             </div>
+                            {profile?.role === 'admin' && (
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); handleDeleteMatch(m.id); }}
+                                 style={{ position: 'absolute', top: '8px', right: '40px', padding: '4px', color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderRadius: '6px', border: 'none', zIndex: 10 }}
+                               >
+                                 <Trash2 size={12} />
+                               </button>
+                             )}
                             {game.mvp === uid && (
                               <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                 MVP
@@ -792,6 +847,14 @@ export default function PerfilPage() {
                               <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(m.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
                             </div>
                           </div>
+                          {profile?.role === 'admin' && (
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); handleDeleteMatch(m.id); }}
+                                 style={{ position: 'absolute', top: '8px', right: '40px', padding: '4px', color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderRadius: '6px', border: 'none', zIndex: 10 }}
+                               >
+                                 <Trash2 size={12} />
+                               </button>
+                             )}
                           {m.mvp === uid && (
                             <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                               MVP
@@ -809,6 +872,28 @@ export default function PerfilPage() {
           </div>
         </motion.div>
       )}
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            style={{
+              position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
+              background: toast.type === 'success' ? 'var(--primary)' : toast.type === 'warning' ? '#f59e0b' : 'var(--surface)',
+              color: toast.type === 'success' ? 'black' : 'white',
+              padding: '12px 24px', borderRadius: '16px', fontWeight: '800', fontSize: '14px',
+              zIndex: 10000, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', gap: '8px', minWidth: '200px', justifyContent: 'center'
+            }}
+          >
+            {toast.type === 'success' && <CheckCircle size={18} />}
+            {toast.type === 'warning' && <AlertCircle size={18} />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
     </>
   );
