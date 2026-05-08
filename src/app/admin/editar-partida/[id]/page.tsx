@@ -1,17 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Calendar, Clock, MapPin, DollarSign, Users, ChevronLeft, Globe, Lock, X, Plus } from 'lucide-react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { Calendar, Clock, MapPin, DollarSign, Users, ChevronLeft, Globe, Lock, X, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function NovaPartidaPage() {
+export default function EditarPartidaPage() {
+  const { id } = useParams();
   const { user, profile } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
 
   const [matchData, setMatchData] = useState({
@@ -26,14 +28,46 @@ export default function NovaPartidaPage() {
     visibility: 'publica' as 'publica' | 'privada',
     invitedEmails: [] as string[],
     pricingType: 'split' as 'split' | 'fixed',
-    fixedPrice: ''
+    fixedPrice: '',
+    price: ''
   });
 
   useEffect(() => {
     if (profile && profile.role !== 'admin') {
       router.push('/');
+      return;
     }
-  }, [profile, router]);
+
+    const fetchMatch = async () => {
+      if (!id) return;
+      try {
+        const snap = await getDoc(doc(db, 'matches', id as string));
+        if (snap.exists()) {
+          const data = snap.data();
+          setMatchData({
+            location: data.location || '',
+            address: data.address || '',
+            date: data.date || '',
+            time: data.time || '',
+            timeEnd: data.timeEnd || '',
+            totalCost: data.totalCost || '',
+            maxPlayers: data.maxPlayers || '20',
+            description: data.description || '',
+            visibility: data.visibility || 'publica',
+            invitedEmails: data.invitedEmails || [],
+            pricingType: data.pricingType || 'split',
+            fixedPrice: data.fixedPrice || '',
+            price: data.price || ''
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setLoading(false);
+    };
+
+    fetchMatch();
+  }, [profile, router, id]);
 
   const addInvitedEmail = () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -58,30 +92,28 @@ export default function NovaPartidaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    setLoading(true);
+    if (!user || !id) return;
+    setSaving(true);
 
     try {
-      await addDoc(collection(db, 'matches'), {
-        ...matchData,
-        price: 0,
-        isClosed: false,
-        createdBy: user.uid,
-        createdByEmail: user.email || '',
-        status: 'scheduled',
-        participants: [],
-        invitations: [],
-        createdAt: serverTimestamp()
+      await updateDoc(doc(db, 'matches', id as string), {
+        ...matchData
       });
-      alert("Partida criada com sucesso!");
+      alert("Partida atualizada com sucesso!");
       router.push('/');
     } catch (error) {
       console.error(error);
-      alert("Erro ao criar partida.");
+      alert("Erro ao atualizar partida.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) return (
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'black', color: 'var(--primary)' }}>
+      <div className="loader-spinner" />
+    </div>
+  );
 
   return (
     <div className="fade-in" style={{ paddingBottom: '100px' }}>
@@ -90,8 +122,8 @@ export default function NovaPartidaPage() {
           <ChevronLeft size={20} />
         </button>
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Nova Partida</h1>
-          <p style={{ color: 'var(--secondary)' }}>Configure o próximo jogo</p>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Editar Partida</h1>
+          <p style={{ color: 'var(--secondary)' }}>Altere as informações do jogo</p>
         </div>
       </header>
 
@@ -133,50 +165,7 @@ export default function NovaPartidaPage() {
                 <Lock size={16} /> PRIVADA
               </button>
             </div>
-            <p style={{ fontSize: '11px', color: 'var(--secondary)', lineHeight: '1.4' }}>
-              {matchData.visibility === 'publica' 
-                ? '🌍 Todos os usuários podem ver e solicitar entrada nesta partida.'
-                : '🔒 Apenas você e os convidados poderão ver esta partida.'}
-            </p>
           </div>
-
-          {/* Invited Emails (only for private) */}
-          {matchData.visibility === 'privada' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                📩 Convidar Jogadores (e-mail)
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input 
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addInvitedEmail())}
-                  style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
-                />
-                <button 
-                  type="button" 
-                  onClick={addInvitedEmail}
-                  style={{ padding: '12px', borderRadius: '12px', background: 'var(--primary)', color: 'black', fontWeight: '900' }}
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-              {matchData.invitedEmails.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                  {matchData.invitedEmails.map(email => (
-                    <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border)', fontSize: '12px', fontWeight: '600' }}>
-                      {email}
-                      <button type="button" onClick={() => removeInvitedEmail(email)} style={{ color: 'var(--error)', display: 'flex' }}>
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -193,7 +182,7 @@ export default function NovaPartidaPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <MapPin size={16} /> Endereço Completo (Opcional)
+              <MapPin size={16} /> Endereço Completo
             </label>
             <input 
               placeholder="Rua, Número, Bairro..."
@@ -202,21 +191,6 @@ export default function NovaPartidaPage() {
               style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
             />
           </div>
-
-          {/* Map Preview */}
-          {(matchData.address.length > 5 || matchData.location.length > 3) && (
-            <div style={{ width: '100%', height: '120px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <iframe 
-                width="100%" 
-                height="100%" 
-                style={{ border: 0 }} 
-                srcDoc={`
-                  <style>body{margin:0;overflow:hidden;}iframe{border:0;width:100%;height:100%;}</style>
-                  <iframe src="https://maps.google.com/maps?q=${encodeURIComponent(matchData.address || matchData.location)}&t=&z=13&ie=UTF8&iwloc=&output=embed"></iframe>
-                `}
-              ></iframe>
-            </div>
-          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -279,12 +253,11 @@ export default function NovaPartidaPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <DollarSign size={16} /> Custo da Quadra (Total)
+                <DollarSign size={16} /> Custo Total
               </label>
               <input 
                 required
                 type="number"
-                placeholder="300,00"
                 value={matchData.totalCost}
                 onChange={e => setMatchData({...matchData, totalCost: e.target.value})}
                 style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
@@ -332,53 +305,39 @@ export default function NovaPartidaPage() {
                 }}
               >VALOR FIXO</button>
             </div>
-
             {matchData.pricingType === 'fixed' && (
-              <div style={{ marginTop: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--secondary)', marginBottom: '6px', display: 'block' }}>Valor Individual (R$)</label>
-                <input 
-                  type="number"
-                  placeholder="Ex: 25,00"
-                  value={matchData.fixedPrice}
-                  onChange={e => setMatchData({...matchData, fixedPrice: e.target.value})}
-                  style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
-                />
-              </div>
+              <input 
+                type="number"
+                placeholder="Valor Individual (R$)"
+                value={matchData.fixedPrice}
+                onChange={e => setMatchData({...matchData, fixedPrice: e.target.value})}
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
+              />
             )}
-            <p style={{ fontSize: '11px', color: 'var(--secondary)', lineHeight: '1.4' }}>
-              {matchData.pricingType === 'split' 
-                ? '📊 O valor individual será calculado dividindo o custo total pelo número de jogadores.'
-                : '💰 Cada jogador pagará o valor fixo definido acima, independente do número de pessoas.'}
-            </p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)' }}>Observações</label>
-            <textarea 
-              placeholder="Ex: Levar chuteira de society..."
-              value={matchData.description}
-              onChange={e => setMatchData({...matchData, description: e.target.value})}
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white', minHeight: '80px' }}
+            <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--secondary)' }}>Preço Final (Travar Manualmente)</label>
+            <input 
+              type="text"
+              placeholder="Ex: 25.00"
+              value={matchData.price}
+              onChange={e => setMatchData({...matchData, price: e.target.value})}
+              style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'white' }}
             />
+            <p style={{ fontSize: '11px', color: 'var(--secondary)' }}>Se preenchido, este valor aparecerá para todos, ignorando cálculos.</p>
           </div>
         </div>
 
         <button 
-          disabled={loading}
+          disabled={saving}
           type="submit"
           style={{ 
-            width: '100%', 
-            padding: '16px', 
-            borderRadius: '16px', 
-            background: 'var(--primary)', 
-            color: 'black', 
-            fontWeight: '800', 
-            fontSize: '1.1rem',
-            boxShadow: '0 4px 20px var(--primary-glow)',
-            opacity: loading ? 0.7 : 1
+            width: '100%', padding: '16px', borderRadius: '16px', background: 'var(--primary)', color: 'black', fontWeight: '800', fontSize: '1.1rem',
+            boxShadow: '0 4px 20px var(--primary-glow)', opacity: saving ? 0.7 : 1
           }}
         >
-          {loading ? 'CRIANDO...' : 'CRIAR PARTIDA'}
+          {saving ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}
         </button>
       </form>
     </div>

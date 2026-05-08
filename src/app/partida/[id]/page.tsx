@@ -648,9 +648,9 @@ export default function LiveMatchPage() {
         )}
       </header>
 
-      <div style={{ padding: '1rem', maxWidth: '500px', margin: '0 auto' }}>
+      <div style={{ padding: '0.75rem', maxWidth: '500px', margin: '0 auto' }}>
         {/* Scoreboard */}
-        <div style={{ borderRadius: '32px', padding: '2rem', marginBottom: '2rem', position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', background: 'var(--surface)' }}>
+        <div style={{ borderRadius: '24px', padding: '1.2rem', marginBottom: '1.5rem', position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', background: 'var(--surface)' }}>
           <div style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', background: 'radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%)', zIndex: 0 }} />
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
@@ -661,7 +661,7 @@ export default function LiveMatchPage() {
                   <button onClick={() => setShowTeamSwapModal({ side: 'A' })} style={{ fontSize: '7px', fontWeight: '900', color: 'var(--primary)', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(29, 185, 84, 0.1)', border: 'none' }}>Trocar Time</button>
                 )}
               </div>
-              <div style={{ fontSize: '3.5rem', fontWeight: '900', fontFamily: 'monospace' }}>{match.liveMatch?.score?.teamA || 0}</div>
+              <div style={{ fontSize: '2.2rem', fontWeight: '900', fontFamily: 'monospace' }}>{match.liveMatch?.score?.teamA || 0}</div>
               {isAdmin && (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '15px' }}>
                   <button onClick={() => handleScore(0, -1)} style={{ width: '36px', height: '36px', borderRadius: '12px', background: 'var(--background)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={14} /></button>
@@ -673,7 +673,7 @@ export default function LiveMatchPage() {
             <div style={{ textAlign: 'center', padding: '0 1rem' }}>
               <div style={{ fontSize: '10px', fontWeight: '900', color: 'rgba(29, 185, 84, 0.4)', marginBottom: '12px' }}>VS</div>
               <div style={{ position: 'relative' }}>
-                <div style={{ background: 'rgba(0,0,0,0.4)', padding: '10px 15px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(4px)' }}>
+                <div style={{ background: 'rgba(0,0,0,0.4)', padding: '8px 12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(4px)' }}>
                   <span style={{ 
                     fontSize: '1.2rem', 
                     fontWeight: '900', 
@@ -742,7 +742,7 @@ export default function LiveMatchPage() {
                   <button onClick={() => setShowTeamSwapModal({ side: 'B' })} style={{ fontSize: '7px', fontWeight: '900', color: 'var(--primary)', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(29, 185, 84, 0.1)', border: 'none' }}>Trocar Time</button>
                 )}
               </div>
-              <div style={{ fontSize: '3.5rem', fontWeight: '900', fontFamily: 'monospace' }}>{match.liveMatch?.score?.teamB || 0}</div>
+              <div style={{ fontSize: '2.2rem', fontWeight: '900', fontFamily: 'monospace' }}>{match.liveMatch?.score?.teamB || 0}</div>
               {isAdmin && (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '15px' }}>
                   <button onClick={() => handleScore(1, -1)} style={{ width: '36px', height: '36px', borderRadius: '12px', background: 'var(--background)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={14} /></button>
@@ -1016,8 +1016,8 @@ export default function LiveMatchPage() {
                <button 
                 onClick={() => setShowEventModal(null)} 
                 style={{ 
-                  width: '100%', padding: '1.2rem', borderRadius: '24px', background: 'var(--surface)', 
-                  border: '1px solid var(--border)', fontWeight: '900', fontSize: '14px', letterSpacing: '0.1em',
+                  width: '100%', padding: '1rem', borderRadius: '20px', background: 'var(--surface)', 
+                  border: '1px solid var(--border)', fontWeight: '900', fontSize: '12px', letterSpacing: '0.1em',
                   marginTop: '1.5rem', color: 'white'
                 }}
                >

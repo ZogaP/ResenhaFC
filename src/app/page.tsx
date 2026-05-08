@@ -586,7 +586,13 @@ export default function Home() {
     }
     
     if (confirm("Deseja fechar a lista e gerar o valor final para cada jogador?")) {
-      const finalPrice = (parseFloat(activeMatch.totalCost) / activeMatch.participants.length).toFixed(2);
+      let finalPrice = "0.00";
+      
+      if (activeMatch.pricingType === 'fixed') {
+        finalPrice = parseFloat(activeMatch.fixedPrice || "0").toFixed(2);
+      } else {
+        finalPrice = (parseFloat(activeMatch.totalCost) / activeMatch.participants.length).toFixed(2);
+      }
       
       try {
         const matchRef = doc(db, 'matches', activeMatch.id);
@@ -760,11 +766,13 @@ export default function Home() {
                 >
                   <Trash2 size={14} />
                 </button>
-                {h.url.includes('drive.google.com') ? (
-                  <iframe src={h.url} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', objectFit: 'cover' }} />
+                {h.url.includes('drive.google.com') || h.url.includes('youtube.com') ? (
+                  <iframe src={transformMediaLink(h.url, true)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', objectFit: 'cover' }} allowFullScreen />
+                ) : (/\.(mp4|webm|ogg|mov)$/i.test(h.url) ? (
+                  <video src={h.url} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted autoPlay loop />
                 ) : (
                   <img src={h.url} alt={h.description} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                )}
+                ))}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', padding: '8px', background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)', fontSize: '10px', fontWeight: '600' }}>
                   {h.description}
                 </div>
@@ -810,7 +818,12 @@ export default function Home() {
             }} style={{ background: 'var(--surface)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700', border: '1px solid var(--border)' }}>COMPARTILHAR</button>
           )}
           {profile?.role === 'admin' && (
-            <button onClick={() => router.push('/admin/nova-partida')} style={{ background: 'var(--primary-gradient)', color: 'black', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}> <Plus size={16} /> NOVA</button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {activeMatch.id && (
+                <button onClick={() => router.push(`/admin/editar-partida/${activeMatch.id}`)} style={{ background: 'var(--surface)', color: 'white', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700', border: '1px solid var(--border)' }}>EDITAR</button>
+              )}
+              <button onClick={() => router.push('/admin/nova-partida')} style={{ background: 'var(--primary-gradient)', color: 'black', padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '700' }}> <Plus size={16} /> NOVA</button>
+            </div>
           )}
         </div>
       </div>
@@ -882,11 +895,19 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
              <DollarSign size={20} color="var(--primary)" />
-             <div style={{ display: 'flex', flexDirection: 'column' }}>
-               <span style={{ fontSize: '10px', color: 'var(--secondary)', fontWeight: '600' }}>{activeMatch.isClosed ? 'PREÇO FINAL' : 'PREÇO ESTIMADO'}</span>
-               <span style={{ fontSize: '1.2rem', fontWeight: '800' }}>{activeMatch.id ? `R$ ${activeMatch.isClosed ? activeMatch.price : (activeMatch.participants?.length > 0 ? (parseFloat(activeMatch.totalCost) / activeMatch.participants.length).toFixed(2) : parseFloat(activeMatch.totalCost).toFixed(2))}` : '--'}</span>
-             </div>
-          </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '10px', color: 'var(--secondary)', fontWeight: '600' }}>
+                  {activeMatch.isClosed ? 'PREÇO FINAL' : 'PREÇO ESTIMADO'}
+                </span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '800' }}>
+                  {activeMatch.id ? `R$ ${
+                    activeMatch.isClosed ? activeMatch.price : 
+                    (activeMatch.pricingType === 'fixed' ? parseFloat(activeMatch.fixedPrice || "0").toFixed(2) : 
+                    (activeMatch.participants?.length > 0 ? (parseFloat(activeMatch.totalCost) / activeMatch.participants.length).toFixed(2) : parseFloat(activeMatch.totalCost).toFixed(2)))
+                  }` : '--'}
+                </span>
+              </div>
+           </div>
           <div style={{ textAlign: 'right' }}>
              <p style={{ fontSize: '11px', color: 'var(--secondary)' }}>CONFIRMADOS</p>
              <p style={{ fontSize: '14px', fontWeight: '700' }}>{activeMatch.participants?.length || 0}/{activeMatch.maxPlayers}</p>
@@ -1196,6 +1217,31 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
         </div>
 
         <div style={{ flex: 1, paddingBottom: '60px' }}>
+          {/* Price Header inside Modal */}
+          <div style={{ 
+            background: 'rgba(255,255,255,0.03)', 
+            padding: '1rem', 
+            borderRadius: '20px', 
+            marginBottom: '1.5rem',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <p style={{ fontSize: '10px', color: 'var(--secondary)', fontWeight: '800', textTransform: 'uppercase' }}>
+                {match.isClosed ? 'Valor Final' : 'Preço por Pessoa'}
+              </p>
+              <p style={{ fontSize: '1.4rem', fontWeight: '900', color: 'var(--primary)' }}>
+                R$ {match.isClosed ? match.price : (match.pricingType === 'fixed' ? parseFloat(match.fixedPrice || "0").toFixed(2) : (match.participants?.length > 0 ? (parseFloat(match.totalCost) / match.participants.length).toFixed(2) : parseFloat(match.totalCost).toFixed(2)))}
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '10px', color: 'var(--secondary)', fontWeight: '800', textTransform: 'uppercase' }}>Custo Total</p>
+              <p style={{ fontSize: '14px', fontWeight: '700' }}>R$ {parseFloat(match.totalCost).toFixed(2)}</p>
+            </div>
+          </div>
+
           {/* Admin: Pending Approvals */}
           {profile?.role === 'admin' && match.pendingPlayers?.length > 0 && (
             <div style={{ marginBottom: '2.5rem' }}>
@@ -1294,6 +1340,15 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                  {profile?.role === 'admin' && player.paymentStatus === 'pending' && (
+                    <button 
+                      onClick={() => handleVerifyPayment(player.uid)}
+                      style={{ background: 'var(--surface)', color: 'var(--primary)', padding: '10px 16px', borderRadius: '12px', fontSize: '11px', fontWeight: '900', border: '1px solid var(--primary-glow)' }}
+                    >
+                      PAGOU
+                    </button>
+                  )}
+
                   {profile?.role === 'admin' && player.paymentStatus === 'notified' && (
                     <button 
                       onClick={() => handleVerifyPayment(player.uid)}

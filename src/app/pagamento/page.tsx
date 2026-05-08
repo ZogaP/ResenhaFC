@@ -29,7 +29,10 @@ export default function PagamentoPage() {
   const [payingFor, setPayingFor] = useState<string[]>([]);
 
   const individualValue = matchInfo && confirmedPlayers.length > 0 
-    ? parseFloat(matchInfo.totalCost || '0') / confirmedPlayers.length 
+    ? (matchInfo.price ? parseFloat(matchInfo.price) : 
+       (matchInfo.pricingType === 'fixed' 
+        ? parseFloat(matchInfo.fixedPrice || '0') 
+        : parseFloat(matchInfo.totalCost || '0') / confirmedPlayers.length))
     : 0;
 
   const totalToPay = individualValue * (1 + payingFor.length);

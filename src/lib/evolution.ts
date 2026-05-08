@@ -174,11 +174,11 @@ export function detectAutoPosition(attributes: any, currentPosition: string): Au
 /**
  * Detect the player's play style based on attribute dominance.
  */
-export function detectPlayStyle(attributes: any, overall: number): PlayerStyle {
+export function detectPlayStyle(attributes: any, overall: number): PlayerStyle | null {
+  if (overall <= 65) return null;
   const { ataque, defesa, passe, velocidade, fisico, finalizacao } = attributes;
   
   // LineUp styles
-  if (overall < 50) return 'cone';
   if (overall > 88) return 'craque';
 
   // Híbridos
@@ -204,8 +204,9 @@ export function detectPlayStyle(attributes: any, overall: number): PlayerStyle {
 
   // Meio
   if (passe > 75) return 'cerebro';
+  if (velocidade > 70 && fisico > 70) return 'motorzinho';
   
-  return 'motorzinho';
+  return 'carrapato';
 }
 
 /**

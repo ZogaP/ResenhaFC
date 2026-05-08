@@ -94,7 +94,9 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
   const handleAddLance = async () => {
     if (!newLink || !profile) return;
     const transformed = transformMediaLink(newLink, true);
-    const isVideo = transformed.includes('drive.google.com') || transformed.includes('youtube.com/embed');
+    const isVideo = transformed.includes('drive.google.com') || 
+                    transformed.includes('youtube.com/embed') || 
+                    /\.(mp4|webm|ogg|mov)$/i.test(transformed);
     
     try {
       await addDoc(collection(db, 'lances'), {
@@ -172,11 +174,11 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
   const currentPlayerLances = activePlayer ? lances.filter(l => l.uid === activePlayer) : [];
 
   return (
-    <div className="fade-in" style={{ paddingTop: '1rem' }}>
+    <div className="fade-in" style={{ paddingTop: '1rem', width: '100%', maxWidth: '100vw', overflowX: 'hidden', boxSizing: 'border-box' }}>
       {isSocial && !groupId && <FriendSuggestions />}
       
       {!groupId && (
-        <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <header style={{ marginBottom: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
           <div>
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Lances</h1>
             <p style={{ color: 'var(--secondary)' }}>Momentos épicos da rede</p>
@@ -446,13 +448,24 @@ function LanceCard({ lance, profile, handleDelete, handleLike, setFullscreenVide
       }}>
         {lance.type === 'video' ? (
           <>
-            <iframe 
-              src={transformMediaLink(lance.url, true)} 
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} 
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-            />
+            { (lance.url.includes('drive.google.com') || lance.url.includes('youtube.com')) ? (
+              <iframe 
+                src={transformMediaLink(lance.url, true)} 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', maxWidth: '100%' }} 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                allowFullScreen
+              />
+            ) : (
+              <video 
+                src={lance.url}
+                controls
+                playsInline
+                preload="metadata"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            )}
             <button 
               onClick={() => setFullscreenVideo(transformMediaLink(lance.url, true))}
               style={{
@@ -558,13 +571,23 @@ function VideoOverlay({ url, onClose }: { url: string, onClose: () => void }) {
         <X size={24} />
       </button>
       <div style={{ width: '100%', maxWidth: '100vw', maxHeight: '100vh', position: 'relative', paddingTop: '56.25%' }}>
-        <iframe 
-          src={url} 
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} 
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="no-referrer"
-          allowFullScreen
-        />
+        { (url.includes('drive.google.com') || url.includes('youtube.com')) ? (
+          <iframe 
+            src={url} 
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} 
+            allow="autoplay; encrypted-media; picture-in-picture"
+            referrerPolicy="no-referrer"
+            allowFullScreen
+          />
+        ) : (
+          <video 
+            src={url}
+            controls
+            autoPlay
+            playsInline
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        )}
       </div>
     </div>
   );

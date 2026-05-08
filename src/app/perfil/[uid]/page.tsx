@@ -148,11 +148,23 @@ export default function PerfilPage() {
     if (!confirm("CONFIRMAÇÃO FINAL: Você tem certeza absoluta?")) return;
 
     try {
-      const { getDocs, collection, deleteDoc, doc } = await import('firebase/firestore');
-      const snap = await getDocs(collection(db, 'matches'));
+      const { getDocs, collection, deleteDoc, doc, query, where } = await import('firebase/firestore');
+      const snap = await getDocs(query(collection(db, 'matches'), where('status', '==', 'finished')));
       const batch = snap.docs.map(d => deleteDoc(doc(db, 'matches', d.id)));
       await Promise.all(batch);
-      showToast("Histórico global limpo!", "success");
+
+      // Reset user stats for all users (global reset)
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const userResets = usersSnap.docs.map(d => updateDoc(doc(db, 'users', d.id), {
+        totalGames: 0,
+        rating: 5,
+        overall: 50,
+        overallHistory: [],
+        attributes: { velocidade: 50, defesa: 50, passe: 50, ataque: 50, fisico: 50, finalizacao: 50 }
+      }));
+      await Promise.all(userResets);
+
+      showToast("Histórico global e estatísticas limpas!", "success");
     } catch (e) {
       console.error(e);
       alert("Erro ao limpar histórico.");
