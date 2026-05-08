@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { ArrowLeft, Trophy, Star, Calendar, Ruler, Weight, Footprints, TrendingUp, TrendingDown, Minus, Info, Sparkles, UserPlus, CheckCircle, Lock, X, Trash2, AlertCircle } from 'lucide-react';
