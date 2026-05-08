@@ -55,7 +55,9 @@ export default function LoginPage() {
             overflow: 'hidden'
           }}
         >
-          <img src="/logo.png" alt="LineUp Logo" style={{ width: '60%', height: '60%', objectFit: 'contain' }} />
+        <div style={{ width: '120px', height: '120px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)', background: 'black', marginBottom: '20px' }}>
+          <img src="/logo.png" alt="LineUp Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </div>
         </motion.div>
         <h1 style={{ fontSize: '2rem', fontWeight: '800', letterSpacing: '-1px' }}>LineUp</h1>
         <p style={{ color: 'var(--secondary)', marginTop: '0.5rem' }}>Entre para entrar em campo</p>

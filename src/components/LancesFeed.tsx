@@ -176,7 +176,7 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
       {isSocial && !groupId && <FriendSuggestions />}
       
       {!groupId && (
-        <header style={{ marginBottom: '1.5rem', padding: '0 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Lances</h1>
             <p style={{ color: 'var(--secondary)' }}>Momentos épicos da rede</p>
@@ -218,7 +218,8 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
               whileTap={{ scale: 0.95 }}
               onClick={() => setActivePlayer(p.uid)}
               className="glass" 
-              style={{ padding: '1.5rem', borderRadius: '24px', textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}
+              className="glass" 
+              style={{ padding: '1rem', borderRadius: '24px', textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}
             >
               <div style={{ position: 'relative', marginBottom: '12px' }}>
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--surface)', overflow: 'hidden', margin: '0 auto', border: '2px solid var(--primary)' }}>
@@ -441,27 +442,30 @@ function LanceCard({ lance, profile, handleDelete, handleLike, setFullscreenVide
         width: '100%', 
         position: 'relative',
         paddingTop: lance.type === 'video' ? '56.25%' : '100%',
-        background: '#000'
+        background: '#000',
+        overflow: 'hidden'
       }}>
         {lance.type === 'video' ? (
           <>
             <iframe 
               src={transformMediaLink(lance.url, true)} 
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} 
-              allow="autoplay; encrypted-media; picture-in-picture"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerPolicy="no-referrer"
+              loading="lazy"
             />
             <button 
               onClick={() => setFullscreenVideo(transformMediaLink(lance.url, true))}
               style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)',
-                color: 'white', padding: '8px 12px', borderRadius: '12px',
-                fontSize: '10px', fontWeight: '800', display: 'flex',
-                alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)', zIndex: 10
+                position: 'absolute', bottom: '12px', right: '12px',
+                background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)',
+                color: 'white', padding: '6px 12px', borderRadius: '10px',
+                fontSize: '10px', fontWeight: '900', display: 'flex',
+                alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.2)', zIndex: 10,
+                boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
               }}
             >
-              <Maximize size={14} /> EXPANDIR
+              <Maximize size={12} strokeWidth={3} /> AMPLIAR
             </button>
           </>
         ) : (

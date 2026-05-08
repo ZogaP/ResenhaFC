@@ -117,7 +117,7 @@ export default function SetupProfilePage() {
   return (
     <div className="fade-in" style={{ padding: '20px', paddingBottom: '100px' }}>
       <header style={{ marginBottom: '2.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-        <img src="/logo.png" alt="LineUp" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+        <img src="/logo.png" alt="LineUp" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '1rem' }} />
         <div>
           <h1 style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)', lineHeight: 1 }}>Configurações</h1>
           <p style={{ color: 'var(--secondary)', marginTop: '4px' }}>Gerencie sua conta e ficha técnica</p>

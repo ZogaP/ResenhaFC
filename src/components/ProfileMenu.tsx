@@ -22,17 +22,21 @@ export default function ProfileMenu({ show, onClose }: ProfileMenuProps) {
 
   // Fetch names/photos of people who sent requests
   useEffect(() => {
-    if (show && profile?.friendRequests && profile.friendRequests.length > 0) {
-      const fetchDetails = async () => {
-        const details = await Promise.all(
-          (profile.friendRequests || []).map(async (uid: string) => {
-            const snap = await getDoc(doc(db, 'users', uid));
-            return snap.exists() ? { uid, ...snap.data() } : null;
-          })
-        );
-        setRequestDetails(details.filter(d => d !== null));
-      };
-      fetchDetails();
+    if (show) {
+      if (profile?.friendRequests && profile.friendRequests.length > 0) {
+        const fetchDetails = async () => {
+          const details = await Promise.all(
+            (profile.friendRequests || []).map(async (uid: string) => {
+              const snap = await getDoc(doc(db, 'users', uid));
+              return snap.exists() ? { uid, ...snap.data() } : null;
+            })
+          );
+          setRequestDetails(details.filter(d => d !== null));
+        };
+        fetchDetails();
+      } else {
+        setRequestDetails([]);
+      }
     }
   }, [show, profile?.friendRequests]);
 
@@ -58,6 +62,7 @@ export default function ProfileMenu({ show, onClose }: ProfileMenuProps) {
           friendRequests: (profile.friendRequests || []).filter(id => id !== friendUid)
         });
       }
+      setRequestDetails(prev => prev.filter(r => r.uid !== friendUid));
     } catch (e) {
       alert("Erro ao aceitar pedido.");
     }
@@ -75,6 +80,7 @@ export default function ProfileMenu({ show, onClose }: ProfileMenuProps) {
           friendRequests: (profile.friendRequests || []).filter(id => id !== friendUid)
         });
       }
+      setRequestDetails(prev => prev.filter(r => r.uid !== friendUid));
     } catch (e) {
       alert("Erro ao recusar pedido.");
     }

@@ -35,12 +35,15 @@ export default function Home() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [guestPosition, setGuestPosition] = useState('MEI');
   const [guestLevel, setGuestLevel] = useState(5);
+  const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
   
   const [setupUsername, setSetupUsername] = useState('');
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -468,6 +471,69 @@ export default function Home() {
     }
   };
 
+  const handleDirectAddUser = async (targetUser: any) => {
+    if (!activeMatch.id || !targetUser.uid) return;
+    const matchRef = doc(db, 'matches', activeMatch.id);
+    
+    const isAlreadyParticipating = activeMatch.participants?.some((p: any) => p.uid === targetUser.uid) || 
+                                  activeMatch.waitingList?.some((p: any) => p.uid === targetUser.uid);
+    
+    if (isAlreadyParticipating) {
+      showToast(`${targetUser.name} já está na lista!`, 'warning');
+      return;
+    }
+
+    const playerObj = {
+      uid: targetUser.uid,
+      name: targetUser.name,
+      photoURL: targetUser.photoURL || '',
+      overall: targetUser.overall || 50,
+      position: targetUser.position || 'MEI',
+      paymentStatus: 'pending'
+    };
+
+    try {
+      const playerLimit = activeMatch.maxPlayers || 18;
+      const currentCount = activeMatch.participants?.length || 0;
+      
+      if (currentCount < playerLimit) {
+        await updateDoc(matchRef, { participants: arrayUnion(playerObj) });
+        showToast(`${targetUser.name} adicionado!`, 'success');
+      } else {
+        await updateDoc(matchRef, { waitingList: arrayUnion(playerObj) });
+        showToast(`${targetUser.name} na lista de espera!`, 'info');
+      }
+      
+      setSearchResults([]);
+      setSearchQuery('');
+      setShowSearchModal(false);
+      setShowFriendsModal(false);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao adicionar jogador.");
+    }
+  };
+
+  const fetchFriends = async () => {
+    if (!profile?.friends || profile.friends.length === 0) {
+      setFriendsList([]);
+      return;
+    }
+    setLoadingFriends(true);
+    try {
+      const q = query(collection(db, 'users'), where('uid', 'in', profile.friends.slice(0, 30)));
+      const snap = await getDocs(q);
+      setFriendsList(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingFriends(false);
+  };
+
+  useEffect(() => {
+    if (showFriendsModal) fetchFriends();
+  }, [showFriendsModal]);
+
   const handleAddGuestPlayer = async () => {
     if (!activeMatch.id || !guestName.trim()) return;
     const matchRef = doc(db, 'matches', activeMatch.id);
@@ -531,6 +597,22 @@ export default function Home() {
         alert(`Lista fechada! Valor final por pessoa: R$ ${finalPrice}`);
       } catch (e) {
         alert("Erro ao fechar lista.");
+      }
+    }
+  };
+
+  const handleReopenList = async () => {
+    if (!activeMatch.id) return;
+    if (confirm("Deseja reabrir a lista? O preço final será recalculado.")) {
+      try {
+        const matchRef = doc(db, 'matches', activeMatch.id);
+        await updateDoc(matchRef, {
+          isClosed: false,
+          price: null
+        });
+        showToast('Lista reaberta com sucesso!', 'success');
+      } catch (e) {
+        alert("Erro ao reabrir lista.");
       }
     }
   };
@@ -796,6 +878,7 @@ export default function Home() {
           </div>
         </div>
 
+        {(isUserConfirmed || profile?.role === 'admin') && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
              <DollarSign size={20} color="var(--primary)" />
@@ -809,6 +892,7 @@ export default function Home() {
              <p style={{ fontSize: '14px', fontWeight: '700' }}>{activeMatch.participants?.length || 0}/{activeMatch.maxPlayers}</p>
           </div>
         </div>
+        )}
 
         <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -869,6 +953,9 @@ export default function Home() {
           {profile?.role === 'admin' && activeMatch.id && !activeMatch.isClosed && (
             <button onClick={handleCloseList} style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'var(--error)', color: 'white', fontWeight: '800', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>FECHAR LISTA E GERAR PREÇO</button>
           )}
+          {profile?.role === 'admin' && activeMatch.id && activeMatch.isClosed && (
+            <button onClick={handleReopenList} style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2))', color: '#fbbf24', fontWeight: '800', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>🔓 REABRIR LISTA</button>
+          )}
         </div>
       </motion.div>
 
@@ -880,6 +967,9 @@ export default function Home() {
             <p style={{ color: 'var(--secondary)', fontSize: '12px', marginBottom: '1.5rem' }}>Escolha como adicionar jogadores à partida</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <button onClick={() => { handleShareMatch(); setShowInviteModal(false); }} style={{ padding: '16px', background: 'var(--primary)', color: 'black', borderRadius: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>🔗 COPIAR LINK DA PARTIDA</button>
+              {profile?.role === 'admin' && (
+                <button onClick={() => { setShowInviteModal(false); setShowFriendsModal(true); }} style={{ padding: '16px', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--primary)', borderRadius: '16px', fontWeight: '800', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>👥 MEUS AMIGOS (ADD DIRETO)</button>
+              )}
               <button onClick={() => { setShowInviteModal(false); setShowSearchModal(true); }} style={{ padding: '16px', background: 'var(--surface)', color: 'white', borderRadius: '16px', fontWeight: '700', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>🔍 BUSCAR @USERNAME</button>
               <button onClick={() => { setShowInviteModal(false); setShowGuestModal(true); }} style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15))', color: '#a78bfa', borderRadius: '16px', fontWeight: '800', border: '1px solid rgba(139, 92, 246, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><UserPlus size={18} /> CONVIDADO SEM CONTA</button>
               <button onClick={() => setShowInviteModal(false)} style={{ marginTop: '10px', color: 'var(--secondary)', fontSize: '14px', fontWeight: '600' }}>FECHAR</button>
@@ -919,7 +1009,12 @@ export default function Home() {
                     <p style={{ fontSize: '14px', fontWeight: '800' }}>{u.name}</p>
                     <p style={{ fontSize: '12px', color: 'var(--primary)' }}>@{u.username}</p>
                   </div>
-                  <button onClick={() => handleInviteUserByUid(u)} style={{ background: 'var(--primary)', color: 'black', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: '900' }}>CONVIDAR</button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleInviteUserByUid(u)} style={{ background: 'rgba(255,255,255,0.05)', color: 'white', padding: '8px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', border: '1px solid var(--border)' }}>CONVIDAR</button>
+                    {profile?.role === 'admin' && (
+                      <button onClick={() => handleDirectAddUser(u)} style={{ background: 'var(--primary)', color: 'black', padding: '8px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: '900' }}>ADD DIRETO</button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -937,9 +1032,42 @@ export default function Home() {
           `}</style>
         </div>
       )}
+
+      {/* Friends Modal */}
+      {showFriendsModal && (
+        <div className="modal-backdrop">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '100%', maxWidth: '400px', borderRadius: '24px', padding: '2rem', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginBottom: '1.5rem', fontWeight: '800', fontSize: '1.2rem', textAlign: 'center' }}>Meus Amigos</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
+              {loadingFriends ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}><div className="loader-spinner-small" style={{ margin: '0 auto' }} /></div>
+              ) : friendsList.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--secondary)', fontSize: '14px', padding: '1rem' }}>Você ainda não tem amigos adicionados.</p>
+              ) : (
+                friendsList.map(u => (
+                  <div key={u.uid} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden' }}>
+                      <img src={u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: '14px', fontWeight: '800' }}>{u.name}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--primary)' }}>@{u.username}</p>
+                    </div>
+                    <button onClick={() => handleDirectAddUser(u)} style={{ background: 'var(--primary)', color: 'black', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: '900' }}>ADD DIRETO</button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button onClick={() => setShowFriendsModal(false)} style={{ width: '100%', marginTop: '1.5rem', padding: '14px', borderRadius: '14px', color: 'var(--secondary)', fontWeight: '700' }}>Fechar</button>
+          </motion.div>
+        </div>
+      )}
+
       {showGuestModal && (
         <div className="modal-backdrop">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '100%', maxWidth: '380px', borderRadius: '24px', padding: '2rem', border: '1px solid var(--border)' }}>
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--surface)', width: '95%', maxWidth: '380px', borderRadius: '24px', padding: '1.5rem', border: '1px solid var(--border)' }}>
             <h3 style={{ marginBottom: '0.5rem', fontWeight: '800', fontSize: '1.2rem', textAlign: 'center' }}>Adicionar Convidado</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '12px', marginBottom: '1.5rem', textAlign: 'center' }}>Jogador sem conta no app</p>
             
@@ -1055,7 +1183,7 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
       color: 'white', overflowY: 'auto', backdropFilter: 'blur(15px)'
     }}>
       <div style={{ 
-        width: '100%', maxWidth: '500px', display: 'flex', flexDirection: 'column', padding: '24px'
+        width: '100%', maxWidth: '500px', display: 'flex', flexDirection: 'column', padding: '16px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', paddingTop: 'env(safe-area-inset-top, 20px)' }}>
           <h2 style={{ fontWeight: '900', fontSize: '1.6rem', letterSpacing: '-0.5px' }}>Detalhes da Pelada</h2>
@@ -1134,10 +1262,11 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '3rem' }}>
             {match.participants?.map((player: any, index: number) => (
               <div key={player.uid} style={{ 
-                background: 'var(--surface)', padding: '16px', borderRadius: '22px', 
-                display: 'flex', alignItems: 'center', gap: '16px', 
+                background: 'var(--surface)', padding: '12px', borderRadius: '22px', 
+                display: 'flex', alignItems: 'center', gap: '10px', 
                 border: '1px solid var(--border)',
-                transition: 'transform 0.2s'
+                transition: 'transform 0.2s',
+                flexWrap: 'wrap'
               }}>
                 <span style={{ fontSize: '14px', fontWeight: '900', color: 'var(--secondary)', width: '28px', textAlign: 'center' }}>{index + 1}</span>
                 <div style={{ 
@@ -1164,7 +1293,7 @@ function MatchDetailsModal({ show, onClose, match, user, profile, handleNotifyPa
                     </span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
                   {profile?.role === 'admin' && player.paymentStatus === 'notified' && (
                     <button 
                       onClick={() => handleVerifyPayment(player.uid)}

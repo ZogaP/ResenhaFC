@@ -104,8 +104,8 @@ export default function Header() {
       gap: '20px'
     }}>
       <Link href="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <img src="/logo.png" alt="LineUp" style={{ height: '32px', width: 'auto' }} />
-        <h1 className="logo-text" style={{ fontSize: '1.2rem', margin: 0 }}>
+        <img src="/logo.png" alt="LineUp" style={{ height: '32px', width: 'auto', borderRadius: '8px' }} />
+        <h1 className="logo-text" style={{ fontSize: '1.2rem', margin: 0, fontWeight: '900' }}>
           LineUp
         </h1>
       </Link>
@@ -253,6 +253,15 @@ export default function Header() {
       <style jsx>{`
         .search-item-hover:hover {
           background: rgba(255,255,255,0.05);
+        }
+        @media (max-width: 400px) {
+          .logo-text {
+            display: none;
+          }
+          header.fixed-header {
+            padding: 12px 10px !important;
+            gap: 10px !important;
+          }
         }
       `}</style>
     </header>

@@ -657,92 +657,151 @@ export default function PerfilPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {matchesList.map((match: any) => {
-                    const userTeam = match.teamA?.some((p: any) => p.uid === uid) ? 'A' : 
-                                   match.teamB?.some((p: any) => p.uid === uid) ? 'B' : null;
+                  {matchesList.flatMap((m: any) => {
+                    const cards: any[] = [];
+
+                    // 1. Add all games from history
+                    if (m.gamesHistory && m.gamesHistory.length > 0) {
+                      m.gamesHistory.forEach((game: any, gIdx: number) => {
+                        const pData = game.participants?.find((p: any) => p.uid === uid);
+                        if (!pData) return;
+
+                        const isWin = (game.winner === 'A' && m.teams?.[0]?.players?.some((p: any) => p.uid === uid)) || 
+                                      (game.winner === 'B' && m.teams?.[1]?.players?.some((p: any) => p.uid === uid));
+                        const isLoss = game.winner !== 'Draw' && !isWin && game.winner !== null;
+                        const isDraw = game.winner === 'Draw';
+
+                        let statusColor = 'var(--secondary)';
+                        let statusText = 'PARTIDA';
+                        if (isWin) { statusColor = '#22c55e'; statusText = 'VITÓRIA'; }
+                        else if (isLoss) { statusColor = '#ef4444'; statusText = 'DERROTA'; }
+                        else if (isDraw) { statusColor = '#94a3b8'; statusText = 'EMPATE'; }
+
+                        cards.push(
+                          <motion.div 
+                            key={`${m.id}-game-${gIdx}`} 
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => { setShowMatchesModal(false); router.push(`/partida/${m.id}`); }} 
+                            style={{ 
+                              padding: '0', background: 'var(--surface)', borderRadius: '20px', border: '1px solid var(--border)', cursor: 'pointer',
+                              display: 'flex', overflow: 'hidden', minHeight: '80px', position: 'relative'
+                            }}
+                          >
+                            <div style={{ width: '6px', flexShrink: 0, background: statusColor }} />
+                            <div style={{ flex: 1, padding: '12px 10px', display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: '55px' }}>
+                                <span style={{ fontSize: '10px', fontWeight: '900', color: statusColor }}>{statusText}</span>
+                                <span style={{ fontSize: '8px', color: 'var(--secondary)', fontWeight: '700', textTransform: 'uppercase' }}>{m.title?.split(' ')[0] || 'Pelada'}</span>
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flex: 1, justifyContent: 'center', minWidth: 0 }}>
+                                <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                  <p style={{ fontSize: '12px', fontWeight: '900', color: (pData.goals || 0) > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pData.goals || 0}</p>
+                                  <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>GOL</p>
+                                </div>
+                                <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                  <p style={{ fontSize: '12px', fontWeight: '900', color: (pData.assists || 0) > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pData.assists || 0}</p>
+                                  <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>AST</p>
+                                </div>
+                                <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                  <p style={{ fontSize: '12px', fontWeight: '900', margin: 0 }}>{Math.floor((pData.minutesPlayed || 0) / 60)}'</p>
+                                  <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>MIN</p>
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                                <p style={{ fontSize: '12px', fontWeight: '900', letterSpacing: '0.5px', fontFamily: 'monospace', margin: 0 }}>
+                                  {game.scoreA ?? 0}<span style={{ color: 'var(--secondary)', fontSize: '10px', margin: '0 1px' }}>-</span>{game.scoreB ?? 0}
+                                </p>
+                              </div>
+                              <div style={{ textAlign: 'right', minWidth: '40px', flexShrink: 0 }}>
+                                <p style={{ fontSize: '8px', fontWeight: '900', margin: '0 0 1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{game.timestamp ? new Date(game.timestamp.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Arena'}</p>
+                                <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(m.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
+                              </div>
+                            </div>
+                            {game.mvp === uid && (
+                              <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                                MVP
+                              </div>
+                            )}
+                          </motion.div>
+                        );
+                      });
+                    }
+
+                    // 2. Add the ongoing/current game if it's not already in history
+                    // (Matches without gamesHistory OR the current live game of a session)
+                    const isOngoing = !m.winner && m.status !== 'finished';
+                    const userParticipated = m.participants?.some((p: any) => p.uid === uid) || m.waitingList?.some((p: any) => p.uid === uid);
                     
-                    const isWin = (match.winner === 'A' && userTeam === 'A') || (match.winner === 'B' && userTeam === 'B');
-                    const isLoss = (match.winner && match.winner !== userTeam && userTeam !== null);
-                    const isDraw = match.winner === 'Draw';
-                    const isOngoing = !match.winner && match.status !== 'finished';
+                    if (userParticipated && (!m.gamesHistory || m.gamesHistory.length === 0 || isOngoing)) {
+                      const userTeam = m.teamA?.some((p: any) => p.uid === uid) ? 'A' : 
+                                     m.teamB?.some((p: any) => p.uid === uid) ? 'B' : null;
+                      
+                      const isWin = (m.winner === 'A' && userTeam === 'A') || (m.winner === 'B' && userTeam === 'B');
+                      const isLoss = (m.winner && m.winner !== userTeam && userTeam !== null);
+                      const isDraw = m.winner === 'Draw';
 
-                    let statusColor = 'var(--secondary)';
-                    let statusText = 'FINALIZADA';
-                    if (isWin) { statusColor = '#22c55e'; statusText = 'VITÓRIA'; }
-                    else if (isLoss) { statusColor = '#ef4444'; statusText = 'DERROTA'; }
-                    else if (isDraw) { statusColor = '#94a3b8'; statusText = 'EMPATE'; }
-                    else if (isOngoing) { statusColor = '#f59e0b'; statusText = 'EM ANDAMENTO'; }
+                      let statusColor = 'var(--secondary)';
+                      let statusText = 'FINALIZADA';
+                      if (isWin) { statusColor = '#22c55e'; statusText = 'VITÓRIA'; }
+                      else if (isLoss) { statusColor = '#ef4444'; statusText = 'DERROTA'; }
+                      else if (isDraw) { statusColor = '#94a3b8'; statusText = 'EMPATE'; }
+                      else if (isOngoing) { statusColor = '#f59e0b'; statusText = 'EM ANDAMENTO'; }
 
-                    const participantData = match.finalParticipants?.find((p: any) => p.uid === uid);
-                    const pGoals = participantData?.goals || 0;
-                    const pAssists = participantData?.assists || 0;
-                    const pMinutes = Math.floor((participantData?.minutesPlayed || 0) / 60);
+                      const participantData = m.finalParticipants?.find((p: any) => p.uid === uid) || m.participants?.find((p: any) => p.uid === uid);
+                      const pGoals = participantData?.goals || 0;
+                      const pAssists = participantData?.assists || 0;
+                      const pMinutes = Math.floor((participantData?.minutesPlayed || 0) / 60);
 
-                    return (
-                      <motion.div 
-                        key={match.id} 
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => { setShowMatchesModal(false); router.push(`/partida/${match.id}`); }} 
-                        style={{ 
-                          padding: '0', 
-                          background: 'var(--surface)', 
-                          borderRadius: '20px', 
-                          border: '1px solid var(--border)', 
-                          cursor: 'pointer',
-                          display: 'flex',
-                          overflow: 'hidden',
-                          minHeight: '80px',
-                          position: 'relative'
-                        }}
-                      >
-                        {/* Result Color Bar */}
-                        <div style={{ width: '6px', flexShrink: 0, background: statusColor }} />
-                        
-                        <div style={{ flex: 1, padding: '12px 15px', display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                          {/* Left: Result */}
-                          <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: '60px' }}>
-                            <span style={{ fontSize: '10px', fontWeight: '900', color: statusColor }}>{statusText}</span>
-                            <span style={{ fontSize: '8px', color: 'var(--secondary)', fontWeight: '700', textTransform: 'uppercase' }}>{match.type || 'Pelada'}</span>
-                          </div>
-
-                          {/* Stats: G / A / M */}
-                          <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'center', minWidth: 0 }}>
-                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
-                              <p style={{ fontSize: '12px', fontWeight: '900', color: pGoals > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pGoals}</p>
-                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>GOL</p>
+                      cards.push(
+                        <motion.div 
+                          key={`${m.id}-current`} 
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => { setShowMatchesModal(false); router.push(`/partida/${m.id}`); }} 
+                          style={{ 
+                            padding: '0', background: 'var(--surface)', borderRadius: '20px', border: '1px solid var(--border)', cursor: 'pointer',
+                            display: 'flex', overflow: 'hidden', minHeight: '80px', position: 'relative'
+                          }}
+                        >
+                          <div style={{ width: '6px', flexShrink: 0, background: statusColor }} />
+                          <div style={{ flex: 1, padding: '12px 10px', display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: '55px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: '900', color: statusColor }}>{statusText}</span>
+                              <span style={{ fontSize: '8px', color: 'var(--secondary)', fontWeight: '700', textTransform: 'uppercase' }}>{m.type || 'Pelada'}</span>
                             </div>
-                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
-                              <p style={{ fontSize: '12px', fontWeight: '900', color: pAssists > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pAssists}</p>
-                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>AST</p>
+                            <div style={{ display: 'flex', gap: '6px', flex: 1, justifyContent: 'center', minWidth: 0 }}>
+                              <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                <p style={{ fontSize: '12px', fontWeight: '900', color: pGoals > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pGoals}</p>
+                                <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>GOL</p>
+                              </div>
+                              <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                <p style={{ fontSize: '12px', fontWeight: '900', color: pAssists > 0 ? 'var(--primary)' : 'white', margin: 0 }}>{pAssists}</p>
+                                <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>AST</p>
+                              </div>
+                              <div style={{ textAlign: 'center', minWidth: '20px' }}>
+                                <p style={{ fontSize: '12px', fontWeight: '900', margin: 0 }}>{pMinutes}'</p>
+                                <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>MIN</p>
+                              </div>
                             </div>
-                            <div style={{ textAlign: 'center', minWidth: '25px' }}>
-                              <p style={{ fontSize: '12px', fontWeight: '900', margin: 0 }}>{pMinutes}'</p>
-                              <p style={{ fontSize: '7px', fontWeight: '900', color: 'var(--secondary)', margin: 0 }}>MIN</p>
+                            <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                              <p style={{ fontSize: '12px', fontWeight: '900', letterSpacing: '0.5px', fontFamily: 'monospace', margin: 0 }}>
+                                {m.scoreA ?? 0}<span style={{ color: 'var(--secondary)', fontSize: '10px', margin: '0 1px' }}>-</span>{m.scoreB ?? 0}
+                              </p>
+                            </div>
+                            <div style={{ textAlign: 'right', minWidth: '40px', flexShrink: 0 }}>
+                              <p style={{ fontSize: '8px', fontWeight: '900', margin: '0 0 1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.title?.split(' ')[0] || 'Arena'}</p>
+                              <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(m.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
                             </div>
                           </div>
+                          {m.mvp === uid && (
+                            <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                              MVP
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    }
 
-                          {/* Center: Score */}
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-                            <p style={{ fontSize: '14px', fontWeight: '900', letterSpacing: '0.5px', fontFamily: 'monospace', margin: 0 }}>
-                              {match.scoreA ?? 0}<span style={{ color: 'var(--secondary)', fontSize: '10px', margin: '0 1px' }}>-</span>{match.scoreB ?? 0}
-                            </p>
-                          </div>
-
-                          {/* Right: Date */}
-                          <div style={{ textAlign: 'right', minWidth: '45px', flexShrink: 0 }}>
-                            <p style={{ fontSize: '8px', fontWeight: '900', margin: '0 0 1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{match.title?.split(' ')[0] || 'Arena'}</p>
-                            <p style={{ fontSize: '7px', color: 'var(--secondary)', margin: 0 }}>{new Date(match.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
-                          </div>
-                        </div>
-
-                        {/* MVP / Winner Tag */}
-                        {match.mvp === uid && (
-                          <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--warning)', color: 'black', fontSize: '7px', fontWeight: '900', padding: '1px 5px', borderBottomLeftRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                            MVP
-                          </div>
-                        )}
-                      </motion.div>
-                    );
+                    return cards;
                   })}
                 </div>
               )}

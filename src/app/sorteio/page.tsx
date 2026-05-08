@@ -454,17 +454,14 @@ export default function SorteioPage() {
       {/* Weights Modal */}
       <AnimatePresence>
         {showWeightsModal && (
-          <>
-            <div 
-              onClick={() => setShowWeightsModal(false)}
-              style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', zIndex: 1100, backdropFilter: 'blur(5px)' }}
-            />
+          <div className="modal-backdrop" onClick={() => setShowWeightsModal(false)}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="glass"
-              style={{ position: 'fixed', top: '50%', left: '50%', x: '-50%', y: '-50%', width: '90%', maxWidth: '350px', zIndex: 1101, borderRadius: '32px', padding: '24px', border: '1px solid var(--border)' }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: '90%', maxWidth: '350px', borderRadius: '32px', padding: '24px', border: '1px solid var(--border)', background: 'var(--surface)' }}
             >
               <h3 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '8px', textAlign: 'center' }}>Pesos do Matchmaking</h3>
               <p style={{ fontSize: '12px', color: 'var(--secondary)', textAlign: 'center', marginBottom: '24px' }}>Ajuste a inteligência do balanceamento</p>
@@ -497,7 +494,7 @@ export default function SorteioPage() {
                 SALVAR CONFIGURAÇÃO
               </button>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 
@@ -532,8 +529,8 @@ export default function SorteioPage() {
               }}
             >
               {presentIds.has(player.uid) ? <CheckCircle size={18} color="var(--primary)" /> : <Circle size={18} color="var(--secondary)" />}
-              <span style={{ fontSize: '13px', fontWeight: '700' }}>{player.name}</span>
-              {(player as any).isGuest && <span className="badge-guest">CONV</span>}
+              <span style={{ fontSize: '13px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{player.name}</span>
+              {(player as any).isGuest && <span className="badge-guest" style={{ flexShrink: 0 }}>CONV</span>}
             </div>
           ))}
         </div>

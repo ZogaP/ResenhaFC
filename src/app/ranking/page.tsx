@@ -213,7 +213,19 @@ export default function GroupsPage() {
         </header>
 
         {/* Group Tabs */}
-        <div style={{ display: 'flex', gap: '8px', background: 'var(--surface)', padding: '6px', borderRadius: '18px', marginBottom: '2rem' }}>
+        <div 
+          className="no-scrollbar"
+          style={{ 
+            display: 'flex', 
+            gap: '6px', 
+            background: 'var(--surface)', 
+            padding: '6px', 
+            borderRadius: '20px', 
+            marginBottom: '2rem',
+            overflowX: 'auto',
+            width: '100%'
+          }}
+        >
           {[
             { id: 'members', label: 'Membros', icon: Users },
             { id: 'ranking', label: 'Ranking', icon: Trophy },
@@ -224,13 +236,15 @@ export default function GroupsPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               style={{
-                flex: 1, padding: '12px', borderRadius: '14px',
+                padding: '10px 16px', borderRadius: '14px',
                 background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
                 color: activeTab === tab.id ? 'black' : 'var(--secondary)',
-                fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                fontWeight: '900', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
-              <tab.icon size={16} /> {tab.label}
+              <tab.icon size={14} /> {tab.label.toUpperCase()}
             </button>
           ))}
         </div>
@@ -394,7 +408,7 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="fade-in" style={{ paddingBottom: '100px' }}>
+    <div className="fade-in container" style={{ paddingBottom: '100px' }}>
       <header style={{ marginBottom: '2.5rem', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '1.8rem', fontWeight: '900' }}>Meus Grupos</h1>

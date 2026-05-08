@@ -130,14 +130,18 @@ export default function LiveMatchPage() {
     await updateDoc(matchRef, { 'liveMatch.timer': timer });
   };
 
-  const handleAddEvent = async (playerId: string, playerName: string) => {
-    if (!showEventModal || !isAdmin) return;
+  const handleAddEvent = async (playerId: string, playerName: string, forcedType?: 'goal' | 'assist', forcedTeamIndex?: number) => {
+    const type = forcedType || showEventModal?.type;
+    const teamIndex = forcedTeamIndex !== undefined ? forcedTeamIndex : showEventModal?.teamIndex;
+    
+    if ((!type || teamIndex === undefined) && !isAdmin) return;
+    
     const matchRef = doc(db, 'matches', match.id);
     const newEvent = {
-      type: showEventModal.type,
+      type,
       playerId,
       playerName,
-      teamIndex: showEventModal.teamIndex,
+      teamIndex,
       minute: Math.floor(currentTime / 60),
       timestamp: Timestamp.now()
     };
@@ -146,11 +150,10 @@ export default function LiveMatchPage() {
       'liveMatch.events': arrayUnion(newEvent)
     });
 
-    if (showEventModal.type === 'goal') {
-      handleScore(showEventModal.teamIndex, 1);
-      // Ask for assist after goal
-      const currentTeamIndex = showEventModal.teamIndex;
-      setShowEventModal({ type: 'assist', teamIndex: currentTeamIndex });
+    if (type === 'goal') {
+      handleScore(teamIndex!, 1);
+      // If it was a quick action, we might want to ask for assist still
+      setShowEventModal({ type: 'assist', teamIndex: teamIndex! });
     } else {
       setShowEventModal(null);
     }
@@ -343,10 +346,25 @@ export default function LiveMatchPage() {
     });
 
     const mvp = [...finalParticipants].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
+    
+    // Create game history entry
+    const gameEntry = {
+      scoreA: score.teamA,
+      scoreB: score.teamB,
+      winner,
+      mvp: mvp?.uid || null,
+      events: events,
+      participants: finalParticipants,
+      timestamp: Timestamp.now(),
+      teamAName,
+      teamBName
+    };
+
     await updateDoc(matchRef, { 
       status: 'finished', scoreA: score.teamA, scoreB: score.teamB, winner,
       mvp: mvp?.uid || null, top3: finalParticipants.sort((a,b) => (b.rating || 0) - (a.rating || 0)).slice(0, 3).map(p => p.uid),
-      finalParticipants, 'liveMatch.isLive': false, 'liveMatch.isFinished': true, 'liveMatch.timer.running': false
+      finalParticipants, 'liveMatch.isLive': false, 'liveMatch.isFinished': true, 'liveMatch.timer.running': false,
+      gamesHistory: arrayUnion(gameEntry)
     });
 
     const { increment } = await import('firebase/firestore');
@@ -397,6 +415,71 @@ export default function LiveMatchPage() {
         console.error(`Error updating player ${p.uid}:`, err);
       }
     }));
+  };
+
+  const handleStartNextMatch = async () => {
+    if (!isAdmin) return;
+    const matchRef = doc(db, 'matches', match.id);
+    
+    // 1. Determine who leaves (loser leaves)
+    const score = match.liveMatch?.score || { teamA: 0, teamB: 0 };
+    let winnerSide = (score.teamA > score.teamB) ? 'A' : (score.teamB > score.teamA) ? 'B' : match.tiebreakerWinner;
+    
+    if (!winnerSide) {
+      // In case of tie without raffle, admin must decide or we use a random one
+      winnerSide = Math.random() > 0.5 ? 'A' : 'B';
+    }
+
+    const loserSide = winnerSide === 'A' ? 'B' : 'A';
+    const loserIndexInActive = loserSide === 'A' ? 0 : 1;
+
+    // 2. Determine who enters (rotation)
+    const allTeamIndices = match.teams.map((_: any, i: number) => i);
+    const nextTeamIndex = allTeamIndices.find((idx: number) => !activeIndices.includes(idx));
+
+    let newActiveIndices = [...activeIndices];
+
+    if (nextTeamIndex !== undefined) {
+      // Team C (or next) enters for Loser
+      newActiveIndices[loserIndexInActive] = nextTeamIndex;
+    } else {
+      // Only 2 teams: The loser is the one who will be swapped via Auto-Swap in the UI
+      // No index change needed, but rotation logic (Auto-Swap) can be triggered manually or automatically
+    }
+
+    // 3. Reset Live Match State
+    const nextLiveMatch = {
+      ...match.liveMatch,
+      isLive: true,
+      isFinished: false,
+      score: { teamA: 0, teamB: 0 },
+      timer: { running: false, elapsed: 0, startedAt: null },
+      events: [],
+      activeIndices: newActiveIndices,
+      pendingEvents: []
+    };
+
+    await updateDoc(matchRef, { 
+      liveMatch: nextLiveMatch,
+      status: 'scheduled',
+      winner: null,
+      scoreA: 0,
+      scoreB: 0,
+      tiebreakerWinner: null,
+      tiebreakerType: null
+    });
+    
+    setCurrentTime(0);
+  };
+
+  const handleFinishAndNext = async () => {
+    if (!isAdmin) return;
+    if (confirm("Deseja encerrar este jogo e já iniciar o próximo?")) {
+      await handleEndMatch();
+      setTimeout(async () => {
+        await handleStartNextMatch();
+      }, 500); // Small delay to ensure Firestore sync
+    }
   };
 
   useEffect(() => {
@@ -506,7 +589,7 @@ export default function LiveMatchPage() {
   const teamBName = match.teams?.[teamBIndex]?.name || `TIME ${String.fromCharCode(65 + teamBIndex)}`;
 
   if (match.liveMatch?.isFinished || match.status === 'finished') {
-    return <FinishedMatchView match={match} router={router} />;
+    return <FinishedMatchView match={match} router={router} isAdmin={isAdmin} onStartNext={handleStartNextMatch} />;
   }
 
   return (
@@ -528,8 +611,16 @@ export default function LiveMatchPage() {
                 <Activity size={20} color="var(--primary)" />
               </button>
             )}
+            {isAdmin && (
+              <button 
+                onClick={handleFinishAndNext} 
+                style={{ padding: '8px 16px', borderRadius: '12px', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--primary)', border: '1px solid rgba(34, 197, 94, 0.2)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={14} /> PRÓXIMO JOGO
+              </button>
+            )}
             <button onClick={handleEndMatch} style={{ padding: '8px 16px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}>
-              FINALIZAR
+              FINALIZAR TUDO
             </button>
           </div>
         ) : <div style={{ width: '44px' }} />}
@@ -659,8 +750,8 @@ export default function LiveMatchPage() {
             <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '10px', fontWeight: '900', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(29, 185, 84, 0.1)', padding: '4px 12px', borderRadius: '8px' }}>{teamBName}</span>
             </div>
-            <TeamColumn players={teamA} isAdmin={isAdmin} onSub={(p: any) => setShowSubModal({ teamIndex: teamAIndex, playerOut: p })} />
-            <TeamColumn players={teamB} isAdmin={isAdmin} onSub={(p: any) => setShowSubModal({ teamIndex: teamBIndex, playerOut: p })} />
+            <TeamColumn players={teamA} isAdmin={isAdmin} onSub={(p: any) => setShowSubModal({ teamIndex: teamAIndex, playerOut: p })} onEvent={(type: any, p: any) => handleAddEvent(p.uid, p.name, type, teamAIndex)} />
+            <TeamColumn players={teamB} isAdmin={isAdmin} onSub={(p: any) => setShowSubModal({ teamIndex: teamBIndex, playerOut: p })} onEvent={(type: any, p: any) => handleAddEvent(p.uid, p.name, type, teamBIndex)} />
           </div>
         </section>
 
@@ -817,10 +908,11 @@ export default function LiveMatchPage() {
       {/* Modals */}
       <AnimatePresence>
         {showEventModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', padding: '20px' }}>
+          <div className="modal-backdrop" onClick={() => setShowEventModal(null)}>
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '40px', padding: '32px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '32px', padding: '24px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
             >
                <h4 style={{ fontSize: '24px', fontWeight: '900', textAlign: 'center', marginBottom: '8px' }}>
                  Registrar {showEventModal.type === 'goal' ? 'Gol' : 'Assistência'}
@@ -828,22 +920,32 @@ export default function LiveMatchPage() {
                <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--secondary)', marginBottom: '2rem' }}>
                  {showEventModal.type === 'assist' ? 'Quem deu o passe para o gol?' : 'Selecione o autor do gol'}
                </p>
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', paddingRight: '4px' }} className="no-scrollbar flex-1 pb-4">
+               <div style={{ 
+                 display: 'grid', 
+                 gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', 
+                 gap: '10px', 
+                 overflowY: 'auto', 
+                 padding: '4px' 
+               }} className="no-scrollbar flex-1 pb-4">
                  {/* Team Selection for Suggestions */}
                  {showEventModal.teamIndex === -1 ? (
                    <>
-                     <div style={{ fontSize: '10px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '1rem' }}>TIME A</div>
+                     <div style={{ gridColumn: '1 / -1', fontSize: '10px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '4px' }}>TIME A</div>
                      {teamA.map((p: any) => (
-                       <button key={p.uid} onClick={() => handleSuggestEvent(showEventModal.type as any, p.uid, p.name, 0)} style={{ width: '100%', padding: '1.2rem', borderRadius: '24px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                         <span style={{ fontWeight: '900' }}>{p.name}</span>
-                         <Plus size={16} color="var(--primary)" />
+                       <button key={p.uid} onClick={() => handleSuggestEvent(showEventModal.type as any, p.uid, p.name, 0)} style={{ padding: '10px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                         <div style={{ width: '32px', height: '32px', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)' }}>
+                           <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                         </div>
+                         <span style={{ fontWeight: '800', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{p.name.split(' ')[0]}</span>
                        </button>
                      ))}
-                     <div style={{ fontSize: '10px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.2em', marginTop: '1.5rem', marginBottom: '1rem' }}>TIME B</div>
+                     <div style={{ gridColumn: '1 / -1', fontSize: '10px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.2em', marginTop: '1rem', marginBottom: '4px' }}>TIME B</div>
                      {teamB.map((p: any) => (
-                       <button key={p.uid} onClick={() => handleSuggestEvent(showEventModal.type as any, p.uid, p.name, 1)} style={{ width: '100%', padding: '1.2rem', borderRadius: '24px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                         <span style={{ fontWeight: '900' }}>{p.name}</span>
-                         <Plus size={16} color="var(--primary)" />
+                       <button key={p.uid} onClick={() => handleSuggestEvent(showEventModal.type as any, p.uid, p.name, 1)} style={{ padding: '10px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                         <div style={{ width: '32px', height: '32px', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)' }}>
+                           <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                         </div>
+                         <span style={{ fontWeight: '800', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{p.name.split(' ')[0]}</span>
                        </button>
                      ))}
                    </>
@@ -851,34 +953,39 @@ export default function LiveMatchPage() {
                    <>
                      {showEventModal.type === 'assist' && (
                        <button 
-                        onClick={() => setShowEventModal(null)}
-                        style={{ width: '100%', padding: '1.2rem', borderRadius: '24px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', color: 'var(--secondary)', fontSize: '12px', fontWeight: '900', marginBottom: '1rem' }}
+                         onClick={() => setShowEventModal(null)}
+                         style={{ 
+                           gridColumn: '1 / -1', padding: '10px', borderRadius: '16px', 
+                           background: 'rgba(239, 68, 68, 0.1)', border: '1px dashed rgba(239, 68, 68, 0.3)', 
+                           color: 'var(--error)', fontSize: '11px', fontWeight: '900', marginBottom: '8px' 
+                         }}
                        >
                          SEM ASSISTÊNCIA
                        </button>
                      )}
                      {(showEventModal.teamIndex === teamAIndex ? teamA : teamB).map((p: any) => (
                        <button 
-                        key={p.uid} 
-                        onClick={() => {
-                          if (match.liveMatch?.isLive) {
-                            handleAddEvent(p.uid, p.name);
-                          } else {
-                            handleSuggestEvent(showEventModal.type as any, p.uid, p.name, showEventModal.teamIndex);
-                          }
-                        }}
-                        style={{ width: '100%', padding: '1rem', borderRadius: '24px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}
+                         key={p.uid} 
+                         onClick={() => {
+                           if (match.liveMatch?.isLive) {
+                             handleAddEvent(p.uid, p.name);
+                           } else {
+                             handleSuggestEvent(showEventModal.type as any, p.uid, p.name, showEventModal.teamIndex);
+                           }
+                         }}
+                         style={{ 
+                           padding: '12px 8px', borderRadius: '20px', 
+                           background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', 
+                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' 
+                         }}
                        >
-                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '14px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                              <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                            <div style={{ textAlign: 'left' }}>
-                              <span style={{ fontWeight: '900', fontSize: '15px', display: 'block' }}>{p.name}</span>
-                              <span style={{ fontSize: '10px', fontWeight: '900', color: 'var(--secondary)' }}>{p.position}</span>
-                            </div>
+                         <div style={{ width: '44px', height: '44px', borderRadius: '14px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                           <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                          </div>
-                         <ChevronRight size={18} color="var(--secondary)" />
+                         <div style={{ textAlign: 'center', width: '100%' }}>
+                           <span style={{ fontWeight: '900', fontSize: '12px', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name.split(' ')[0]}</span>
+                           <span style={{ fontSize: '8px', fontWeight: '800', color: 'var(--secondary)' }}>{p.position}</span>
+                         </div>
                        </button>
                      ))}
                    </>
@@ -901,10 +1008,11 @@ export default function LiveMatchPage() {
 
       <AnimatePresence>
         {showSubModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', padding: '20px' }}>
+          <div className="modal-backdrop" onClick={() => setShowSubModal(null)}>
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '40px', padding: '32px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '32px', padding: '24px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
             >
                <h4 style={{ fontSize: '24px', fontWeight: '900', textAlign: 'center', marginBottom: '8px' }}>Substituição</h4>
                <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--secondary)', marginBottom: '2rem' }}>
@@ -915,29 +1023,32 @@ export default function LiveMatchPage() {
                  )}
                </p>
                
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', paddingRight: '4px' }} className="no-scrollbar flex-1 pb-4">
+               <div style={{ 
+                 display: 'grid', 
+                 gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', 
+                 gap: '12px', 
+                 overflowY: 'auto', 
+                 padding: '4px' 
+               }} className="no-scrollbar flex-1 pb-4">
                  {match.bench?.map((p: any) => (
                    <button 
                     key={p.uid} 
                     onClick={() => handleSubstitution(p)}
                     style={{ 
-                      width: '100%', padding: '1rem', borderRadius: '24px', background: 'rgba(255,255,255,0.05)', 
-                      border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                      padding: '12px 8px', borderRadius: '24px', background: 'rgba(255,255,255,0.05)', 
+                      border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px'
                     }}
                    >
-                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                       <div style={{ width: '56px', height: '56px', borderRadius: '16px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                         <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                       </div>
-                       <div style={{ textAlign: 'left' }}>
-                         <p style={{ fontWeight: '900', fontSize: '16px', color: 'white', marginBottom: '2px' }}>{p.name}</p>
-                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                           <span style={{ fontSize: '10px', fontWeight: '900', color: 'var(--primary)', background: 'rgba(29, 185, 84, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>{p.position}</span>
-                           <span style={{ fontSize: '10px', fontWeight: '900', color: 'var(--secondary)' }}>OVR {p.overall}</span>
-                         </div>
+                     <div style={{ width: '48px', height: '48px', borderRadius: '14px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                       <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                     </div>
+                     <div style={{ textAlign: 'center', width: '100%' }}>
+                       <p style={{ fontWeight: '900', fontSize: '13px', color: 'white', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name.split(' ')[0]}</p>
+                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                         <span style={{ fontSize: '8px', fontWeight: '900', color: 'var(--primary)', textTransform: 'uppercase' }}>{p.position}</span>
+                         <span style={{ fontSize: '8px', fontWeight: '900', color: 'var(--secondary)' }}>OVR {p.overall}</span>
                        </div>
                      </div>
-                     <UserPlus size={20} color="var(--primary)" />
                    </button>
                  ))}
                </div>
@@ -949,10 +1060,11 @@ export default function LiveMatchPage() {
 
       <AnimatePresence>
         {showTeamSwapModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', padding: '20px' }}>
+          <div className="modal-backdrop" onClick={() => setShowTeamSwapModal(null)}>
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '40px', padding: '32px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+              style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '32px', padding: '24px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
             >
                <h4 style={{ fontSize: '24px', fontWeight: '900', textAlign: 'center', marginBottom: '8px' }}>Escolher Equipe</h4>
                <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--secondary)', marginBottom: '2rem' }}>Entrar no lugar do {showTeamSwapModal.side === 'A' ? teamAName : teamBName}</p>
@@ -985,7 +1097,7 @@ export default function LiveMatchPage() {
 
       <AnimatePresence>
         {showSettingsModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', padding: '20px' }}>
+          <div className="modal-backdrop">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               style={{ width: '100%', maxWidth: '400px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '40px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
@@ -1083,7 +1195,7 @@ export default function LiveMatchPage() {
   );
 }
 
-function TeamColumn({ players, isAdmin, onSub }: any) {
+function TeamColumn({ players, isAdmin, onSub, onEvent }: any) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {players.map((p: any) => (
@@ -1097,9 +1209,27 @@ function TeamColumn({ players, isAdmin, onSub }: any) {
             <div style={{ width: '40px', height: '40px', borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
               <img src={p.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
-            <div style={{ overflow: 'hidden' }}>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
               <p style={{ fontSize: '11px', fontWeight: '900', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name.split(' ')[0]}</p>
-              <p style={{ fontSize: '8px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{p.position}</p>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <span style={{ fontSize: '8px', fontWeight: '900', color: 'var(--secondary)', textTransform: 'uppercase' }}>{p.position}</span>
+                {isAdmin && (
+                  <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto' }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onEvent('assist', p); }}
+                      style={{ width: '24px', height: '24px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}
+                    >
+                      <Target size={12} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onEvent('goal', p); }}
+                      style={{ width: '24px', height: '24px', borderRadius: '8px', background: 'rgba(29, 185, 84, 0.1)', border: '1px solid rgba(29, 185, 84, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           {isAdmin && (
@@ -1136,7 +1266,7 @@ function TeamColumn({ players, isAdmin, onSub }: any) {
   );
 }
 
-function FinishedMatchView({ match, router }: { match: any, router: any }) {
+function FinishedMatchView({ match, router, isAdmin, onStartNext }: { match: any, router: any, isAdmin?: boolean, onStartNext?: () => void }) {
   const participants = match.finalParticipants || [];
   const mvp = participants.find((p: any) => p.uid === match.mvp);
   const top3 = participants.filter((p: any) => match.top3?.includes(p.uid)).sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
@@ -1264,6 +1394,24 @@ function FinishedMatchView({ match, router }: { match: any, router: any }) {
             </table>
           </div>
         </section>
+
+        {isAdmin && onStartNext && (
+          <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button 
+              onClick={onStartNext}
+              style={{ 
+                width: '100%', padding: '1.5rem', borderRadius: '24px', background: 'var(--primary)', 
+                color: 'black', fontWeight: '900', fontSize: '1.1rem', letterSpacing: '0.05em',
+                boxShadow: '0 10px 30px var(--primary-glow)', border: 'none'
+              }}
+            >
+              PRÓXIMA PARTIDA
+            </button>
+            <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--secondary)', fontWeight: '700' }}>
+              A equipe que perdeu sairá para a entrada da próxima.
+            </p>
+          </div>
+        )}
       </div>
       <style jsx global>{`
         .fade-in { animation: fadeIn 0.5s ease-out; }

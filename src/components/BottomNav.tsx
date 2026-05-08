@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Shield, Camera, Wallet, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, Camera, Wallet, HelpCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const navItems = [
   { label: 'Início', icon: LayoutDashboard, href: '/' },
-  { label: 'Sorteio', icon: Users, href: '/sorteio' },
-  { label: 'Grupos', icon: Shield, href: '/ranking' },
+  { label: 'Partida', icon: Trophy, href: '/sorteio' },
+  { label: 'Grupos', icon: Users, href: '/ranking' },
   { label: 'Lances', icon: Camera, href: '/lances' },
   { label: 'Pagar', icon: Wallet, href: '/pagamento' },
   { label: 'Ajuda', icon: HelpCircle, href: '/ajuda' },

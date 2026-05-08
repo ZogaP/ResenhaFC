@@ -100,6 +100,18 @@ export default function PagamentoPage() {
     ? Math.round((paidCount / confirmedPlayers.length) * 100) 
     : 0;
 
+  const isParticipant = confirmedPlayers.some((p: any) => p.uid === profile?.uid);
+
+  if (!loading && !isParticipant) {
+    return (
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: '2rem' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚽</div>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem' }}>Nenhuma pelada encontrada</h2>
+        <p style={{ color: 'var(--secondary)', fontSize: '14px', maxWidth: '280px' }}>Você precisa estar confirmado em uma pelada para acessar o pagamento.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="fade-in">
       <header style={{ marginBottom: '2rem', paddingTop: '1rem' }}>
@@ -243,11 +255,11 @@ export default function PagamentoPage() {
                 padding: '12px 0',
                 borderTop: i === 0 ? 'none' : '1px solid var(--border)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--surface)', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--surface)', overflow: 'hidden', flexShrink: 0 }}>
                     <img src={player.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
-                  <span style={{ fontSize: '15px', fontWeight: '600', color: player.uid === profile?.uid ? 'var(--primary)' : 'white' }}>
+                  <span style={{ fontSize: '15px', fontWeight: '600', color: player.uid === profile?.uid ? 'var(--primary)' : 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {player.name} {player.uid === profile?.uid ? '(Você)' : ''}
                   </span>
                 </div>

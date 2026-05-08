@@ -160,6 +160,22 @@ header.fixed-header {
   font-size: 11px;
   font-weight: 500;
   transition: all 0.2s ease;
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+@media (max-width: 380px) {
+  .nav-item {
+    font-size: 9px;
+    gap: 2px;
+  }
+  .nav-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+  }
 }
 
 .nav-item.active {
@@ -280,10 +296,17 @@ header.fixed-header {
   background: rgba(0,0,0,0.85);
   z-index: 9999;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 40px 20px;
+  overflow-y: auto;
   animation: fadeIn 0.2s ease-out;
+}
+
+@media (max-width: 768px) {
+  .modal-backdrop {
+    padding-top: 20px;
+  }
 }
 
 /* Slider custom */
