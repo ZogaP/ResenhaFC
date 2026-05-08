@@ -594,39 +594,61 @@ export default function LiveMatchPage() {
 
   return (
     <div className="fade-in" style={{ paddingBottom: '100px', minHeight: '100vh', background: 'var(--background)', color: 'white', fontFamily: 'var(--font-sans)', overflowX: 'hidden' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem', position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10, 10, 10, 0.8)', backdropFilter: 'blur(12px)' }}>
-        <button onClick={() => router.back()} style={{ padding: '12px', borderRadius: '16px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <ArrowLeft size={20} />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: match.liveMatch?.isLive ? 'var(--error)' : 'var(--secondary)' }} />
-          <span style={{ fontSize: '10px', fontWeight: '900', letterSpacing: '0.2em', color: match.liveMatch?.isLive ? 'var(--error)' : 'var(--secondary)', textTransform: 'uppercase' }}>
-            {match.liveMatch?.isLive ? 'AO VIVO' : 'PARTIDA ENCERRADA'}
-          </span>
+      <header style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        gap: '12px',
+        padding: '1rem', 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 50, 
+        background: 'rgba(10, 10, 10, 0.9)', 
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <button onClick={() => router.back()} style={{ padding: '8px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <ArrowLeft size={18} />
+          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: match.liveMatch?.isLive ? 'var(--error)' : 'var(--secondary)' }} />
+            <span style={{ fontSize: '9px', fontWeight: '900', letterSpacing: '0.1em', color: match.liveMatch?.isLive ? 'var(--error)' : 'var(--secondary)' }}>
+              {match.liveMatch?.isLive ? 'AO VIVO' : 'ENCERRADA'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {isAdmin && (
+              <button onClick={() => setShowSettingsModal(true)} style={{ padding: '8px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <Activity size={18} color="var(--primary)" />
+              </button>
+            )}
+            <button onClick={handleEndMatch} style={{ padding: '6px 12px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '9px', fontWeight: '900' }}>
+              SAIR
+            </button>
+          </div>
         </div>
-        {match.liveMatch?.isLive ? (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {isAdmin && (
-              <button onClick={() => setShowSettingsModal(true)} style={{ padding: '12px', borderRadius: '16px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <Activity size={20} color="var(--primary)" />
-              </button>
-            )}
-            {isAdmin && (
-              <button 
-                onClick={handleFinishAndNext} 
-                style={{ padding: '8px 16px', borderRadius: '12px', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--primary)', border: '1px solid rgba(34, 197, 94, 0.2)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <RefreshCw size={14} /> PRÓXIMO JOGO
-              </button>
-            )}
-            <button onClick={handleEndMatch} style={{ padding: '8px 16px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}>
+
+        {isAdmin && match.liveMatch?.isLive && (
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            <button 
+              onClick={handleFinishAndNext} 
+              style={{ flex: 1, padding: '10px', borderRadius: '12px', background: 'var(--primary-gradient)', color: 'black', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <RefreshCw size={14} /> PRÓXIMO JOGO
+            </button>
+            <button 
+              onClick={handleEndMatch} 
+              style={{ flex: 1, padding: '10px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--error)', border: '1px solid var(--error)', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
+            >
               FINALIZAR TUDO
             </button>
           </div>
-        ) : <div style={{ width: '44px' }} />}
+        )}
       </header>
 
-      <div style={{ padding: '0 1.5rem', maxWidth: '500px', margin: '0 auto' }}>
+      <div style={{ padding: '1rem', maxWidth: '500px', margin: '0 auto' }}>
         {/* Scoreboard */}
         <div style={{ borderRadius: '32px', padding: '2rem', marginBottom: '2rem', position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', background: 'var(--surface)' }}>
           <div style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', background: 'radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%)', zIndex: 0 }} />

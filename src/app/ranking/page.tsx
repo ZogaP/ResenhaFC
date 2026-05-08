@@ -408,7 +408,7 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="fade-in container" style={{ paddingBottom: '100px' }}>
+    <div className="fade-in" style={{ paddingBottom: '100px' }}>
       <header style={{ marginBottom: '2.5rem', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '1.8rem', fontWeight: '900' }}>Meus Grupos</h1>
