@@ -218,7 +218,6 @@ export default function LancesFeed({ groupId, isSocial }: LancesFeedProps) {
               whileTap={{ scale: 0.95 }}
               onClick={() => setActivePlayer(p.uid)}
               className="glass" 
-              className="glass" 
               style={{ padding: '1rem', borderRadius: '24px', textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}
             >
               <div style={{ position: 'relative', marginBottom: '12px' }}>
